@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, Inbox, RefreshCw } from 'lucide-react';
+import { Button } from './Button';
 
 export const EmptyState = ({ title = 'Nothing here yet', description, action }) => (
   <div className="py-10 px-4 text-center">
@@ -19,13 +20,9 @@ export const ErrorState = ({ message = 'Something went wrong', onRetry }) => (
     </div>
     <p className="text-sm font-semibold text-rose-300">{message}</p>
     {onRetry && (
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition-colors"
-      >
-        <RefreshCw className="w-3.5 h-3.5" /> Retry
-      </button>
+      <Button variant="outline" icon={RefreshCw} onClick={onRetry} className="mt-4 px-3 py-1.5">
+        Retry
+      </Button>
     )}
   </div>
 );

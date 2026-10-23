@@ -1,62 +1,39 @@
 import React from 'react';
 import { ShieldAlert } from 'lucide-react';
-import { TableContent } from '../common/States';
+import { Card, CardHeader } from '../ui/Card';
+import { DataTable } from '../ui/DataTable';
+import { formatDateTime } from '../../utils/format';
 
-export const BlockedTokensTable = ({ tokens = [], loading = false, error = null, onRetry }) => {
-  return (
-    <div className="glass-panel rounded-2xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-rose-400" />
-            Security & Blacklisted Tokens
-          </h3>
-          <p className="text-xs text-slate-400">JWT tokens revoked upon user logout or security invalidation</p>
-        </div>
-      </div>
+const columns = [
+  { key: '_id', header: 'Record ID', className: 'font-mono font-medium text-slate-300' },
+  {
+    key: 'token',
+    header: 'Revoked Token snippet',
+    className: 'font-mono text-slate-400 max-w-xs truncate',
+    render: (item) => (
+      <span className="text-rose-300 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
+        {item.token ? item.token.substring(0, 45) + '...' : '[REVOKED]'}
+      </span>
+    ),
+  },
+  { key: 'reason', header: 'Revocation Reason', className: 'font-semibold text-slate-300', render: (item) => item.reason || 'User Logout' },
+  { key: 'createdAt', header: 'Blacklisted At', className: 'text-slate-400', render: (item) => formatDateTime(item.createdAt) },
+];
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900/60 text-slate-400 border-b border-slate-800 uppercase font-semibold text-[10px] tracking-wider">
-            <tr>
-              <th className="py-3 px-4">Record ID</th>
-              <th className="py-3 px-4">Revoked Token snippet</th>
-              <th className="py-3 px-4">Revocation Reason</th>
-              <th className="py-3 px-4">Blacklisted At</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/50">
-            <TableContent
-              colSpan={4}
-              loading={loading}
-              error={error}
-              onRetry={onRetry}
-              isEmpty={tokens.length === 0}
-              emptyTitle="No blocked tokens"
-              emptyDescription="Tokens are revoked here when users log out."
-            >
-              {tokens.map((item) => (
-                <tr key={item._id} className="hover:bg-slate-900/40 transition-colors">
-                  <td className="py-3.5 px-4 font-mono font-medium text-slate-300">
-                    {item._id}
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-slate-400 max-w-xs truncate">
-                    <span className="text-rose-300 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
-                      {item.token ? item.token.substring(0, 45) + '...' : '[REVOKED]'}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 font-semibold text-slate-300">
-                    {item.reason || 'User Logout'}
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-400">
-                    {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Recent'}
-                  </td>
-                </tr>
-              ))}
-            </TableContent>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-};
+export const BlockedTokensTable = ({ tokens = [], loading = false, error = null, onRetry }) => (
+  <Card>
+    <CardHeader
+      title={<><ShieldAlert className="w-5 h-5 text-rose-400" /> Security & Blacklisted Tokens</>}
+      subtitle="JWT tokens revoked upon user logout or security invalidation"
+    />
+    <DataTable
+      columns={columns}
+      rows={tokens}
+      loading={loading}
+      error={error}
+      onRetry={onRetry}
+      emptyTitle="No blocked tokens"
+      emptyDescription="Tokens are revoked here when users log out."
+    />
+  </Card>
+);

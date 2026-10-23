@@ -1,7 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
+import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { AppLayout } from './components/layout/AppLayout';
+import { ProtectedRoute, HomeRedirect } from './routes/guards';
 
 // Pages
 import { Login } from './pages/Login';
@@ -15,123 +19,41 @@ import { AdminLedger } from './pages/AdminLedger';
 import { AdminTransactions } from './pages/AdminTransactions';
 import { AdminBlockedTokens } from './pages/AdminBlockedTokens';
 
-// Protected Route Component
-const ProtectedRoute = ({ children, requiredRole }) => {
-  const { user, role, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-400 font-bold text-sm">
-        Loading LedgerX...
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (requiredRole && role !== requiredRole) {
-    return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />;
-  }
-
-  return children;
-};
-
-// Sends unknown URLs to the right home page for the current role
-const HomeRedirect = () => {
-  const { user, role, loading } = useAuth();
-
-  if (loading) return null;
-  if (!user) return <Navigate to="/login" replace />;
-
-  return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />;
-};
-
 export function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <Router>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <AuthProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
 
-            {/* User Portal Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <UserDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/accounts"
-              element={
-                <ProtectedRoute>
-                  <UserAccounts />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/transactions"
-              element={
-                <ProtectedRoute>
-                  <UserTransactions />
-                </ProtectedRoute>
-              }
-            />
+              {/* Signed-in pages share the Navbar + Sidebar layout */}
+              <Route element={<ProtectedRoute />}>
+                <Route element={<AppLayout />}>
+                  <Route path="/dashboard" element={<UserDashboard />} />
+                  <Route path="/accounts" element={<UserAccounts />} />
+                  <Route path="/transactions" element={<UserTransactions />} />
 
-            {/* Admin Portal Routes */}
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminUsers />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/ledger"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminLedger />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/transactions"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminTransactions />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/blocked-tokens"
-              element={
-                <ProtectedRoute requiredRole="admin">
-                  <AdminBlockedTokens />
-                </ProtectedRoute>
-              }
-            />
+                  <Route element={<ProtectedRoute requiredRole="admin" />}>
+                    <Route path="/admin" element={<AdminDashboard />} />
+                    <Route path="/admin/users" element={<AdminUsers />} />
+                    <Route path="/admin/ledger" element={<AdminLedger />} />
+                    <Route path="/admin/transactions" element={<AdminTransactions />} />
+                    <Route path="/admin/blocked-tokens" element={<AdminBlockedTokens />} />
+                  </Route>
+                </Route>
+              </Route>
 
-            {/* Fallback Redirect */}
-            <Route path="*" element={<HomeRedirect />} />
-          </Routes>
-        </Router>
-      </AuthProvider>
-    </ToastProvider>
+              {/* Fallback Redirect */}
+              <Route path="*" element={<HomeRedirect />} />
+            </Routes>
+          </Router>
+        </AuthProvider>
+      </ToastProvider>
+    </QueryClientProvider>
   );
 }
 

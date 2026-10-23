@@ -1,24 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
-import { transactionService, generateIdempotencyKey } from '../../services/api';
+import { Button } from '../ui/Button';
+import { Input, Select } from '../ui/Input';
+import { generateIdempotencyKey } from '../../services/api';
+import { useDisburseFunds } from '../../hooks/queries';
 import { useToast } from '../../context/ToastContext';
-import { DollarSign, ShieldAlert, RefreshCw, Send } from 'lucide-react';
+import { DollarSign, RefreshCw, Send } from 'lucide-react';
 
-export const InitialFundsModal = ({ isOpen, onClose, targetUser, onSuccess }) => {
+export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
   const [toAccount, setToAccount] = useState('');
   const [amount, setAmount] = useState('10000');
   const [idempotencyKey, setIdempotencyKey] = useState('');
-  const [loading, setLoading] = useState(false);
   const { showSuccess, showError } = useToast();
+  const disburse = useDisburseFunds();
+
+  const targetAccounts = targetUser?.accounts ?? [];
 
   useEffect(() => {
     if (isOpen) {
       setIdempotencyKey(generateIdempotencyKey());
-      if (targetUser?.accounts && targetUser.accounts.length > 0) {
-        setToAccount(targetUser.accounts[0]._id);
-      } else if (targetUser?._id) {
-        setToAccount('');
-      }
+      setToAccount(targetUser?.accounts?.[0]?._id ?? '');
     }
   }, [isOpen, targetUser]);
 
@@ -29,21 +30,17 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser, onSuccess }) =>
       return;
     }
 
-    setLoading(true);
     try {
-      const res = await transactionService.createInitialFunds({
+      const res = await disburse.mutateAsync({
         toAccount,
         amount: Number(amount),
         idempotencyKey,
       });
 
       showSuccess(res.message || 'Initial funds disbursed successfully!');
-      if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
       showError(err.message || 'Failed to disburse initial funds. Make sure system user has an account.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -57,51 +54,39 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser, onSuccess }) =>
           </div>
           <p className="text-slate-300 text-[11px] leading-relaxed">
             This operation transfers initial capital from the System Reserve account to{' '}
-            <span className="font-bold text-emerald-300">{targetUser?.name || 'Selected User'}</span>'s account via double-entry ledger.
+            <span className="font-bold text-emerald-300">{targetUser?.name || 'Selected User'}</span>&apos;s account via double-entry ledger.
           </p>
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">Destination Account</label>
-          {targetUser?.accounts && targetUser.accounts.length > 0 ? (
-            <select
-              value={toAccount}
-              onChange={(e) => setToAccount(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-              required
-            >
-              {targetUser.accounts.map((acc) => (
-                <option key={acc._id} value={acc._id}>
-                  Account {acc._id} ({acc.status})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type="text"
-              value={toAccount}
-              onChange={(e) => setToAccount(e.target.value)}
-              placeholder="Enter Account ID (e.g. 65e31a890123...)"
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-              required
-            />
-          )}
-        </div>
+        {targetAccounts.length > 0 ? (
+          <Select label="Destination Account" value={toAccount} onChange={(e) => setToAccount(e.target.value)} mono required>
+            {targetAccounts.map((acc) => (
+              <option key={acc._id} value={acc._id}>
+                Account {acc._id} ({acc.status})
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <Input
+            label="Destination Account"
+            value={toAccount}
+            onChange={(e) => setToAccount(e.target.value)}
+            placeholder="Enter Account ID (e.g. 65e31a890123...)"
+            mono
+            required
+          />
+        )}
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">Initial Amount (INR)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-2.5 text-slate-500 text-sm font-semibold">₹</span>
-            <input
-              type="number"
-              min="1"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 font-bold"
-              required
-            />
-          </div>
-        </div>
+        <Input
+          label="Initial Amount (INR)"
+          prefix="₹"
+          type="number"
+          min="1"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="font-bold"
+          required
+        />
 
         <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
           <div className="flex items-center justify-between text-slate-400 mb-1">
@@ -118,21 +103,12 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser, onSuccess }) =>
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-          >
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-glow-emerald transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
-          >
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+          <Button type="submit" variant="solid" icon={Send} loading={disburse.isPending} className="px-5 py-2.5">
             Disburse Funds
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusCircle, ArrowLeftRight, CreditCard, ShieldCheck } from 'lucide-react';
+import { PlusCircle, ArrowLeftRight } from 'lucide-react';
 
 export const QuickActions = ({ onCreateAccount, onOpenTransfer }) => {
   return (

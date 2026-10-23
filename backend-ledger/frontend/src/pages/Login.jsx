@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { Building2, ArrowRight, Lock, Mail, PlayCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -73,57 +75,47 @@ export const Login = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-10 pr-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                required
-              />
-            </div>
-          </div>
+          <Input
+            label="Email Address"
+            icon={Mail}
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@company.com"
+            required
+          />
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-900 border border-slate-700/80 rounded-xl pl-10 pr-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
-                required
-              />
-            </div>
-          </div>
+          <Input
+            label="Password"
+            icon={Lock}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            required
+          />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 text-slate-950 font-extrabold text-sm shadow-glow-emerald transition-all duration-200 flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
-          >
+          <Button type="submit" size="lg" fullWidth disabled={loading} className="mt-2">
             {loading ? 'Authenticating...' : 'Sign In'}
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Button>
         </form>
 
         {/* One-click demo login */}
         <div className="mt-6 pt-5 border-t border-slate-800 text-center">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="lg"
+            fullWidth
+            icon={PlayCircle}
             onClick={handleDemoLogin}
             disabled={demoLoading}
-            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/30 text-emerald-300 font-bold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            className="py-2.5 border-emerald-500/30 text-emerald-300 font-bold"
           >
-            <PlayCircle className="w-4 h-4" />
             {demoLoading ? 'Opening demo...' : 'Explore with Demo Account'}
-          </button>
+          </Button>
           <p className="text-xs text-slate-500 mt-2">
             Pre-funded account with sample transactions. No sign-up needed.
           </p>
@@ -131,7 +123,7 @@ export const Login = () => {
 
         {/* Register Link */}
         <div className="mt-6 text-center text-xs text-slate-400">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link to="/register" className="text-emerald-400 font-bold hover:underline">
             Create an Account
           </Link>

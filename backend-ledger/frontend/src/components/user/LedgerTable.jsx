@@ -1,142 +1,105 @@
 import React, { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight, Search } from 'lucide-react';
-import { TableContent } from '../common/States';
-import { getCreatedAt } from '../../utils/format';
+import { Card, CardHeader } from '../ui/Card';
+import { DataTable } from '../ui/DataTable';
+import { cn } from '../../utils/cn';
+import { formatCurrency, formatDateTime, getCreatedAt } from '../../utils/format';
+
+const filters = [
+  { value: 'ALL', label: 'All', active: 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' },
+  { value: 'CREDIT', label: 'Credits', active: 'bg-emerald-950 text-emerald-300 border border-emerald-500/30' },
+  { value: 'DEBIT', label: 'Debits', active: 'bg-rose-950 text-rose-300 border border-rose-500/30' },
+];
+
+const columns = [
+  { key: '_id', header: 'Entry ID', className: 'font-mono font-medium text-slate-300' },
+  {
+    key: 'type',
+    header: 'Type',
+    render: (entry) =>
+      entry.type === 'CREDIT' ? (
+        <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-bold text-[10px]">
+          <ArrowDownLeft className="w-3 h-3" /> CREDIT
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full font-bold text-[10px]">
+          <ArrowUpRight className="w-3 h-3" /> DEBIT
+        </span>
+      ),
+  },
+  { key: 'account', header: 'Account ID', className: 'font-mono text-slate-400' },
+  {
+    key: 'amount',
+    header: 'Amount',
+    className: 'font-extrabold text-white text-sm',
+    render: (entry) => `${entry.type === 'CREDIT' ? '+' : '-'} ${formatCurrency(entry.amount)}`,
+  },
+  { key: 'transaction', header: 'Transaction Ref', className: 'font-mono text-slate-400', render: (entry) => entry.transaction || 'N/A' },
+  { key: 'createdAt', header: 'Timestamp', className: 'text-slate-400', render: (entry) => formatDateTime(getCreatedAt(entry)) },
+];
 
 export const LedgerTable = ({ entries = [], loading = false, error = null, onRetry }) => {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
 
+  const query = search.toLowerCase();
   const filteredEntries = entries.filter((item) => {
-    const matchesSearch =
-      (item.account || '').toLowerCase().includes(search.toLowerCase()) ||
-      (item.transaction || '').toLowerCase().includes(search.toLowerCase()) ||
-      (item._id || '').toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = [item.account, item.transaction, item._id].some((value) =>
+      (value || '').toLowerCase().includes(query)
+    );
 
-    if (filterType === 'CREDIT') return matchesSearch && item.type === 'CREDIT';
-    if (filterType === 'DEBIT') return matchesSearch && item.type === 'DEBIT';
-    return matchesSearch;
+    return matchesSearch && (filterType === 'ALL' || item.type === filterType);
   });
 
   return (
-    <div className="glass-panel rounded-2xl p-5">
-      {/* Controls: Search & Filter Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            Ledger Audit Log
-          </h3>
-          <p className="text-xs text-slate-400">
-            Immutable credit & debit records for your accounts
-          </p>
-        </div>
+    <Card>
+      <CardHeader
+        className="mb-5"
+        title="Ledger Audit Log"
+        subtitle="Immutable credit & debit records for your accounts"
+        actions={
+          <>
+            {/* Search Box */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search Ledger ID / Txn..."
+                aria-label="Search ledger entries"
+                className="bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44 sm:w-56"
+              />
+            </div>
 
-        <div className="flex items-center gap-3">
-          {/* Search Box */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Ledger ID / Txn..."
-              className="bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-44 sm:w-56"
-            />
-          </div>
-
-          {/* Type Filter Buttons */}
-          <div className="flex bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
-            <button
-              onClick={() => setFilterType('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                filterType === 'ALL'
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilterType('CREDIT')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                filterType === 'CREDIT'
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Credits
-            </button>
-            <button
-              onClick={() => setFilterType('DEBIT')}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                filterType === 'DEBIT'
-                  ? 'bg-rose-950 text-rose-300 border border-rose-500/30'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Debits
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-900/60 text-slate-400 border-b border-slate-800 uppercase font-semibold text-[10px] tracking-wider">
-            <tr>
-              <th className="py-3 px-4">Entry ID</th>
-              <th className="py-3 px-4">Type</th>
-              <th className="py-3 px-4">Account ID</th>
-              <th className="py-3 px-4">Amount</th>
-              <th className="py-3 px-4">Transaction Ref</th>
-              <th className="py-3 px-4">Timestamp</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/50">
-            <TableContent
-              colSpan={6}
-              loading={loading}
-              error={error}
-              onRetry={onRetry}
-              isEmpty={filteredEntries.length === 0}
-              emptyTitle={entries.length === 0 ? 'No ledger entries yet' : 'No entries match your filters'}
-              emptyDescription={entries.length === 0 ? 'Credits and debits will appear here after your first transfer.' : undefined}
-            >
-              {filteredEntries.map((entry) => (
-                <tr key={entry._id} className="hover:bg-slate-900/40 transition-colors">
-                  <td className="py-3 px-4 font-mono font-medium text-slate-300">
-                    {entry._id}
-                  </td>
-                  <td className="py-3 px-4">
-                    {entry.type === 'CREDIT' ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                        <ArrowDownLeft className="w-3 h-3" /> CREDIT
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                        <ArrowUpRight className="w-3 h-3" /> DEBIT
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-400">
-                    {entry.account}
-                  </td>
-                  <td className="py-3 px-4 font-extrabold text-white text-sm">
-                    {entry.type === 'CREDIT' ? '+' : '-'} ₹{(entry.amount || 0).toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 font-mono text-slate-400">
-                    {entry.transaction || 'N/A'}
-                  </td>
-                  <td className="py-3 px-4 text-slate-400">
-                    {getCreatedAt(entry)?.toLocaleString() ?? '—'}
-                  </td>
-                </tr>
+            {/* Type Filter Buttons */}
+            <div className="flex bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs">
+              {filters.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setFilterType(f.value)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-lg font-medium transition-all',
+                    filterType === f.value ? f.active : 'text-slate-400 hover:text-slate-200'
+                  )}
+                >
+                  {f.label}
+                </button>
               ))}
-            </TableContent>
-          </tbody>
-        </table>
-      </div>
-    </div>
+            </div>
+          </>
+        }
+      />
+
+      <DataTable
+        columns={columns}
+        rows={filteredEntries}
+        loading={loading}
+        error={error}
+        onRetry={onRetry}
+        emptyTitle={entries.length === 0 ? 'No ledger entries yet' : 'No entries match your filters'}
+        emptyDescription={entries.length === 0 ? 'Credits and debits will appear here after your first transfer.' : undefined}
+      />
+    </Card>
   );
 };
