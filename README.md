@@ -1,279 +1,289 @@
-# 🏦 Banking Ledger & Transaction Management System
+# LedgerX: Banking Ledger & Transaction Management System
 
-A production-grade, double-entry banking ledger and transaction management system designed for immutable audit trails, ACID-compliant money transfers, idempotency control, and role-based real-time dashboards.
+A full-stack double-entry banking ledger. Balances are derived from an immutable ledger, transfers are atomic and idempotent, and concurrent transfers can never overdraw an account.
 
-![Node.js](https://img.shields.io/badge/Node.js-v20-339933?logo=node.js&logoColor=white)
-![Express.js](https://img.shields.io/badge/Express.js-v5-000000?logo=express&logoColor=white)
+[![Live demo](https://img.shields.io/badge/Live_demo-Render-46E3B7?logo=render&logoColor=white)](https://banking-ledger-lpzw.onrender.com)
+![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
+![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-transactions-47A248?logo=mongodb&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?logo=mongodb&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-06B6D4?logo=tailwindcss&logoColor=white)
-![JWT](https://img.shields.io/badge/Auth-JWT%20Blacklist-FFB000?logo=jsonwebtokens&logoColor=black)
-![License](https://img.shields.io/badge/License-ISC-blue.svg)
+![TanStack Query](https://img.shields.io/badge/TanStack_Query-5-FF4154?logo=reactquery&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white)
+
+**Try it:** open the [live demo](https://banking-ledger-lpzw.onrender.com) and click **Explore the demo account**. No sign-up needed; the demo account is pre-funded with sample transactions.
+
+> The demo runs on Render's free tier, which sleeps after 15 minutes of inactivity. The first request can take 30 to 60 seconds while it wakes up.
+
+![Dashboard](docs/screenshots/dashboard-light.png)
+
+| Review before sending | Admin console (dark theme) |
+|---|---|
+| ![Transfer review](docs/screenshots/transfer-review.png) | ![Admin users](docs/screenshots/admin-users.png) |
+
+| Sign in | Dark theme | Mobile |
+|---|---|---|
+| ![Login](docs/screenshots/login.png) | ![Dashboard dark](docs/screenshots/dashboard-dark.png) | <img src="docs/screenshots/mobile.png" alt="Mobile dashboard" width="260"> |
 
 ---
 
-## 🌟 Features
+## Highlights
 
-### 👤 User Features
-* **Account Creation & Multi-Currency Support**: Open and maintain accounts (e.g. INR) with real-time status tracking.
-* **Double-Entry Fund Transfers**: Transfer funds securely to any destination account with automatic balance derivation.
-* **Strict Idempotency Protection**: Every transaction request requires a unique `idempotencyKey` to prevent accidental double-spending or duplicate charges on network retries.
-* **Derived Balance Calculation**: Balances are calculated dynamically by aggregating verified historical ledger entries, preventing balance manipulation.
-* **Instant Email Notifications**: Automated email alerts for debited and credited accounts via Nodemailer (OAuth2 / SMTP).
-* **Personal Transaction & Ledger History**: Inspect detailed chronological debit/credit ledger records and transfer statuses (`PENDING`, `COMPLETED`, `FAILED`, `REVERSED`).
-
-### 🛡️ Admin Features
-* **Comprehensive Dashboard**: View system-wide metrics including total accounts, circulating balances, users, and transactions.
-* **Full Ledger Audit Trail**: Centralized access to every single ledger movement across all user accounts in the system.
-* **User Lifecycle Management**: Monitor registered users and toggle account statuses (`ACTIVE`, `SUSPENDED`, `FROZEN`).
-* **Session & Security Oversight**: Inspect blacklisted / invalidated JWT tokens to monitor logout security and session revocations.
-* **Initial Capital Allocation**: Privileged system user account to seed initial liquidity safely into customer accounts.
-
-### ⚙️ Financial Ledger Engine
-* **Strict Double-Entry Bookkeeping**: Every transaction creates atomic, balanced `DEBIT` and `CREDIT` ledger records.
-* **Immutable Ledger Records**: Enforced at the schema level—MongoDB pre-hooks reject any update, delete, or replace operations.
-* **ACID Transactions**: MongoDB session transactions ensure atomicity; if any step fails, the entire transfer cleanly rolls back.
-* **JWT Blacklist Architecture**: Server-side token blacklisting on logout to thwart token replay attacks.
+- **Double-entry bookkeeping.** Every transfer writes exactly one `DEBIT` and one `CREDIT` entry. The sum of all debits always equals the sum of all credits.
+- **Derived balances.** There is no `balance` field to tamper with: an account's balance is aggregated from its ledger entries on every read.
+- **Immutable ledger.** Every ledger field is marked immutable, and Mongoose pre-hooks reject update and delete queries (`updateOne`, `findOneAndUpdate`, `deleteMany`, ...) on ledger entries.
+- **Atomic transfers.** The transaction record and both ledger entries are written in one MongoDB transaction, so a failure leaves nothing behind.
+- **No double spending.** Concurrent transfers from the same account are serialized with a sender lock (see [below](#why-transfers-lock-the-sender)). Verified on a real replica set: 5 parallel transfers of ₹40,000 against a ₹45,000 balance let exactly 1 through.
+- **Idempotent API.** Retrying a request with the same idempotency key returns the original transaction instead of moving money twice, even when the retries race each other.
+- **Recipient confirmation.** Before sending, the app looks up the destination account and shows a masked owner name ("Rahul S."), then asks for confirmation on a review screen.
+- **Role-based admin console.** Admins approve, freeze and unfreeze accounts, fund users from a system reserve, and audit the global ledger, every transaction and revoked sessions.
+- **Revocable sessions.** JWTs are blacklisted on logout (with a TTL index that cleans them up), so a logged-out token can never be reused.
+- **Polished UI.** Light and dark themes (following the OS by default), responsive layout with a mobile navigation drawer, loading, empty and error states on every page.
 
 ---
 
-## 🔄 The 10-Step Transaction Lifecycle
+## How a transfer works
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Client
-    participant API as Transaction API
-    participant Cache as Idempotency / DB
-    participant DB as MongoDB (ACID Session)
-    participant Mail as Email Service
+    actor User
+    participant UI as React app
+    participant API as Express API
+    participant DB as MongoDB (transaction)
 
-    User->>API: POST /api/transactions (with idempotencyKey)
-    API->>API: 1. Validate request payload & accounts
-    API->>Cache: 2. Check idempotencyKey existence
-    API->>DB: 3. Verify sender & receiver account status
-    API->>DB: 4. Derive sender balance from immutable ledger
-    API->>DB: 5. Create Transaction record (PENDING)
-    API->>DB: 6. Record DEBIT ledger entry for sender
-    API->>DB: 7. Record CREDIT ledger entry for receiver
-    API->>DB: 8. Update Transaction status to COMPLETED
-    API->>DB: 9. Commit MongoDB ACID Session
-    API->>Mail: 10. Send async email notification
-    API-->>User: Return 201 Created & Transaction details
+    User->>UI: Enter recipient account ID and amount
+    UI->>API: GET /api/accounts/lookup/:id
+    API-->>UI: Masked owner name + status ("Rahul S.", ACTIVE)
+    User->>UI: Review and confirm
+    UI->>API: POST /api/transactions (with idempotency key)
+    API->>API: Validate input, check the sender belongs to the user
+    API->>DB: Key already used? Return the original transaction
+    API->>DB: Start transaction
+    API->>DB: Lock sender (increment lockVersion)
+    API->>DB: Check receiver is ACTIVE
+    API->>DB: Derive balance from the ledger (inside the transaction)
+    API->>DB: Insert transaction + DEBIT + CREDIT entries
+    API->>DB: Commit (any failure aborts everything)
+    API-->>UI: 201 Created with the transaction
+    API--)User: Email notification, sent after commit without blocking the response
 ```
+
+### Why transfers lock the sender
+
+Checking the balance and then inserting ledger entries is not safe under concurrency, even inside a MongoDB transaction. Two transfers that start at the same time both read the same balance from their snapshot, both pass the check, and both insert *different* ledger documents. Because they never write the same document, MongoDB sees no conflict and commits both. This anomaly is called **write skew**, and it lets the balance go negative.
+
+The fix is to make every outgoing transfer write to the sender's account document first (`$inc: { lockVersion: 1 }`). Now two concurrent transfers from the same account do conflict: MongoDB aborts one with a `WriteConflict`, `session.withTransaction()` retries it, and on the retry it sees the first transfer's ledger entries and the reduced balance.
+
+Measured against a MongoDB 7 replica set:
+
+| Scenario | Before the fix | After the fix |
+|---|---|---|
+| ₹45,000 balance, 5 parallel transfers of ₹40,000 | 3 succeeded, balance **−₹75,000** | 1 succeeded, balance **₹5,000** |
+| ₹9,100 balance, 20 parallel transfers of ₹1,000 | not measured | 9 succeeded, balance **₹100** |
+| Same idempotency key sent 5 times in parallel | not measured | **1** transaction created |
+
+The logic lives in [`backend/src/services/transfer.service.js`](backend-ledger/backend/src/services/transfer.service.js).
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## Features
+
+### For users
+- Register, then wait for an admin to approve the account (a banner explains the wait and transfers stay disabled until then)
+- One-click demo login
+- Total balance across accounts, plus per-account balances derived from the ledger
+- Open additional accounts
+- Three-step transfers: form with live recipient lookup and balance validation, review, and a receipt with the transaction ID
+- Ledger history showing "Sent to" and "Received from" for every entry, with search and credit/debit filters
+
+### For admins
+- System overview: users, ledger entries, completed transfer volume, revoked sessions
+- Approve pending accounts, freeze and unfreeze active ones, search and filter users by status
+- Fund any account from the system reserve (recorded as a normal double-entry transfer)
+- Global ledger, every transaction with its idempotency key, and the list of revoked sessions
+
+---
+
+## Tech stack
 
 | Layer | Technologies |
 |---|---|
-| **Frontend** | React 18, Vite 5, TailwindCSS, React Router v6, Lucide Icons, Framer Motion, Axios |
-| **Backend** | Node.js (v20+), Express.js v5, Cookie-Parser, Dotenv |
-| **Database & ODM** | MongoDB, Mongoose 9 (with ACID Transaction Sessions & Pre-hook Immutability) |
-| **Authentication & Security** | JSON Web Tokens (JWT), BcryptJS, Cookie-based token handling, Blacklist Model |
-| **Mailing / Notifications** | Nodemailer (Google OAuth2 & standard SMTP fallback) |
+| Frontend | React 18, Vite 5, React Router 6, TanStack Query 5, Tailwind CSS 3 (CSS-variable theme tokens), Framer Motion, Axios, Lucide icons, ESLint |
+| Backend | Node.js 20+, Express 5, Mongoose 9, JSON Web Tokens, bcryptjs, Nodemailer |
+| Database | MongoDB replica set or Atlas (multi-document transactions) |
+| Hosting | Render (a single web service serves both the API and the built frontend) |
 
 ---
 
-## 📁 Project Directory Structure
+## Project structure
 
 ```plaintext
-Banking-ledger-transaction-management-system/
-│
-├── README.md                                  # Repository documentation
-└── backend-ledger/
-    ├── backend/                               # Express.js REST API
-    │   ├── server.js                          # Server bootstrapper & DB connection
-    │   ├── package.json                       # Backend dependencies & scripts
-    │   └── src/
-    │       ├── app.js                         # Express application setup & middleware
-    │       ├── config/
-    │       │   └── db.js                      # MongoDB connection logic
-    │       ├── controllers/
-    │       │   ├── auth.controller.js         # Register, Login, Logout (blacklist)
-    │       │   ├── account.controller.js      # Account creation, balance, user ledger
-    │       │   ├── transaction.controller.js  # 10-step atomic transfer flow
-    │       │   └── admin.controller.js        # Admin metrics, user & ledger control
-    │       ├── middleware/
-    │       │   └── auth.middleware.js         # JWT auth & system user validation
-    │       ├── models/
-    │       │   ├── user.model.js              # User schema with hashed passwords
-    │       │   ├── account.model.js           # Bank account records
-    │       │   ├── transaction.model.js       # Transaction headers & idempotency
-    │       │   ├── ledger.model.js            # Immutable double-entry ledger
-    │       │   └── blackList.model.js         # Revoked JWT tokens with TTL index
-    │       ├── routes/                        # API Route definitions
-    │       ├── scripts/
-    │       │   └── seedAdmin.js               # CLI script to seed system administrator
-    │       └── services/
-    │           └── email.service.js           # Transaction email notifications
-    │
-    └── frontend/                              # React + Vite Client Application
-        ├── package.json                       # Frontend dependencies & scripts
-        ├── vite.config.js                     # Vite build & API reverse proxy configuration
-        ├── tailwind.config.js                 # Tailwind styling rules
-        └── src/
-            ├── App.jsx                        # Application router & route guards
-            ├── main.jsx                       # React root entry point
-            ├── components/                    # Modular UI components (User & Admin)
-            ├── context/                       # Authentication & global application state
-            ├── pages/
-            │   ├── Login.jsx                  # User / Admin authentication
-            │   ├── Register.jsx               # New user onboarding
-            │   ├── UserDashboard.jsx          # Balance & quick actions
-            │   ├── UserAccounts.jsx           # Bank account listing
-            │   ├── UserTransactions.jsx       # Money transfers & transaction list
-            │   ├── AdminDashboard.jsx         # Administrative analytics
-            │   ├── AdminUsers.jsx             # User account status controls
-            │   ├── AdminTransactions.jsx      # System-wide transaction log
-            │   ├── AdminLedger.jsx            # System-wide double-entry ledger records
-            │   └── AdminBlockedTokens.jsx     # Security & token audit page
-            └── services/
-                └── api.js                     # Centralized Axios HTTP client
+backend-ledger/
+├── backend/                        Express API
+│   ├── server.js                   Connects to MongoDB, seeds admin/demo users, starts the server
+│   └── src/
+│       ├── app.js                  Routes, and serves the built frontend in production
+│       ├── controllers/            auth, account, transaction, admin
+│       ├── middleware/             JWT auth and system-user (admin) guard
+│       ├── models/                 user, account, transaction, ledger (immutable), token blacklist
+│       ├── routes/
+│       └── services/
+│           ├── transfer.service.js Atomic, idempotent transfers with sender locking
+│           ├── seed.service.js     Admin and demo user seeding
+│           └── email.service.js
+└── frontend/                       React + Vite client
+    └── src/
+        ├── pages/                  User and admin pages, login, register, 404
+        ├── components/
+        │   ├── ui/                 Button, Input, Card, DataTable, Alert, ... (shared kit)
+        │   ├── layout/             App shell and auth split-screen layout
+        │   ├── user/               Account card, ledger table, transfer modal
+        │   └── admin/              User management, funding modal, revoked tokens
+        ├── hooks/queries.js        TanStack Query hooks for every API call
+        ├── context/                Auth, theme and toast providers
+        └── services/api.js         Axios client with error normalisation and 401 handling
 ```
 
 ---
 
-## 🚀 Getting Started
+## API reference
 
-### 📋 Prerequisites
-* **Node.js** (v18 or v20+ recommended)
-* **npm** or **yarn**
-* **MongoDB** (Local instance or MongoDB Atlas cluster URI)
+All endpoints are under `/api`. Authenticated requests send the JWT as a cookie or an `Authorization: Bearer` header.
+
+### Auth
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/auth/register` | Public | Create a user and a pending account |
+| `POST` | `/auth/login` | Public | Sign in and receive a JWT |
+| `POST` | `/auth/demo-login` | Public | Sign in as the demo user (never returns an admin session) |
+| `GET` | `/auth/me` | User | Current user, used to validate a stored session |
+| `POST` | `/auth/logout` | User | Revoke the current token |
+
+### Accounts
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `GET` | `/accounts` | User | The user's accounts |
+| `POST` | `/accounts` | User | Open another account |
+| `GET` | `/accounts/balance/:accountId` | Owner | Balance derived from the ledger |
+| `GET` | `/accounts/ledger` | User | The user's ledger entries, each with its counterparty account |
+| `GET` | `/accounts/lookup/:accountId` | User | Masked owner name and status, used to confirm a recipient |
+
+### Transactions
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| `POST` | `/transactions` | Owner of `fromAccount` | Transfer between two accounts |
+| `POST` | `/transactions/system/initial-funds` | Admin | Fund an account from the system reserve |
+
+```http
+POST /api/transactions
+Content-Type: application/json
+
+{
+  "fromAccount": "6adbcf80fc6f830769b188ef",
+  "toAccount": "6adbcf80fc6f830769b1890a",
+  "amount": 1500,
+  "idempotencyKey": "3f1c2a9e-7b1d-4c55-9e0a-2a4f6d8b1c33"
+}
+```
+
+| Status | Meaning |
+|---|---|
+| `201` | Transfer completed |
+| `200` | The idempotency key was already used for this exact transfer; the original transaction is returned |
+| `400` | Invalid input, insufficient balance, or an account that is not active |
+| `403` | The sending account belongs to someone else |
+| `404` | Account not found |
+| `409` | The idempotency key was already used for a different transfer |
+
+### Admin (system users only)
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/admin/users` | All users with their account status |
+| `PATCH` | `/admin/users/:userId/status` | Set a user's accounts to `PENDING`, `ACTIVE`, `FROZEN` or `CLOSED` |
+| `GET` | `/admin/ledger` | Every ledger entry |
+| `GET` | `/admin/transactions` | Every transaction |
+| `GET` | `/admin/blocked-tokens` | Revoked sessions |
 
 ---
 
-### 1️⃣ Clone the Repository
+## Running locally
+
+### Prerequisites
+- Node.js 20 or newer
+- MongoDB **running as a replica set**. Transfers use multi-document transactions, which a standalone `mongod` does not support. Either use a free MongoDB Atlas cluster, or start a single-node replica set with Docker:
+
+```bash
+docker run -d --name ledger-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+docker exec ledger-mongo mongosh --eval 'rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})'
+```
+
+### Backend
+
 ```bash
 git clone https://github.com/arungujjar123/Banking-ledger-transaction-management-system.git
-cd Banking-ledger-transaction-management-system
+cd Banking-ledger-transaction-management-system/backend-ledger/backend
+npm install
+cp .env.example .env   # then edit the values
+npm run dev            # API on http://localhost:3000
 ```
 
----
+| Variable | Required | Description |
+|---|---|---|
+| `MONGO_URI` | Yes | Replica set or Atlas connection string, e.g. `mongodb://localhost:27017/banking_ledger?replicaSet=rs0` |
+| `JWT_SECRET` | Yes | Long random string used to sign tokens |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Recommended | The admin user and system reserve account are created on startup if missing |
+| `DEMO_EMAIL`, `DEMO_PASSWORD` | Optional | Enables the demo login; the demo user is created and funded once |
+| `EMAIL_USER` + `EMAIL_PASS`, or `CLIENT_ID` / `CLIENT_SECRET` / `REFRESH_TOKEN` | Optional | Gmail credentials for notification emails (app password or OAuth2) |
+| `PORT` | Optional | Defaults to `3000` |
 
-### 2️⃣ Backend Setup
+### Frontend
 
-1. Navigate to the backend folder:
-   ```bash
-   cd backend-ledger/backend
-   ```
+```bash
+cd ../frontend
+npm install
+npm run dev            # http://localhost:5173, proxies /api to the backend
+npm run lint
+```
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Create your `.env` configuration file in `backend-ledger/backend/.env`:
-   ```env
-   PORT=3000
-   MONGO_URI=your_mongodb_connection_string
-   JWT_SECRET=your_super_secret_jwt_key
-   
-   # Email Configuration (OAuth2 or SMTP)
-   EMAIL_USER=your_email@gmail.com
-   EMAIL_PASS=your_gmail_app_password
-   # Or OAuth2:
-   CLIENT_ID=your_google_client_id
-   CLIENT_SECRET=your_google_client_secret
-   REFRESH_TOKEN=your_google_refresh_token
-   ```
-
-4. Seed the System Administrator and System Account:
-   ```bash
-   npm run seed:admin
-   ```
-
-5. Start the backend server:
-   ```bash
-   # Development mode with nodemon
-   npm run dev
-
-   # Production mode
-   npm start
-   ```
-   > The API will start at: `http://localhost:3000`
+Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explore the demo account** if the demo variables are set.
 
 ---
 
-### 3️⃣ Frontend Setup
+## Deployment
 
-1. Open a new terminal and navigate to the frontend folder:
-   ```bash
-   cd backend-ledger/frontend
-   ```
+The app deploys as **one Render web service**: Express serves the API and the built React app from the same origin, so there is no CORS setup and cookies just work.
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the Vite development server:
-   ```bash
-   npm run dev
-   ```
-   > The web app will launch at: `http://localhost:5173`
-
----
-
-## 🔑 Administrator Account
-
-Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. The admin user and its system account are created automatically when the server starts (or run `npm run seed:admin` manually). Log in with those credentials to access the Admin Suite:
-
-| Parameter | Value |
+| Setting | Value |
 |---|---|
-| **Role** | System Administrator |
-| **Email** | value of `ADMIN_EMAIL` |
-| **Password** | value of `ADMIN_PASSWORD` |
-| **Permissions** | System-wide Ledger, User Management, Initial Fund Distribution |
+| Root directory | `backend-ledger` |
+| Build command | `cd frontend && npm install && npm run build && cd ../backend && npm install` |
+| Start command | `cd backend && npm start` |
+| Health check path | `/health` |
+
+Set the environment variables from the table above in the Render dashboard. [`render.yaml`](render.yaml) describes the same setup as a Render Blueprint.
 
 ---
 
-## 📡 API Reference
+## Security notes
 
-### 🔐 Authentication (`/api/auth`)
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|:---:|
-| `POST` | `/api/auth/register` | Register a new user | ❌ |
-| `POST` | `/api/auth/login` | Authenticate and receive JWT cookie | ❌ |
-| `POST` | `/api/auth/logout` | Invalidate token & store in blacklist | ✅ |
-
-### 💳 Accounts (`/api/accounts`)
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|:---:|
-| `POST` | `/api/accounts/` | Create a new bank account | ✅ |
-| `GET` | `/api/accounts/` | Get all accounts for logged-in user | ✅ |
-| `GET` | `/api/accounts/ledger` | Fetch ledger entries for user's accounts | ✅ |
-| `GET` | `/api/accounts/balance/:accountId` | Retrieve current derived balance | ✅ |
-
-### 💸 Transactions (`/api/transactions`)
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|:---:|
-| `POST` | `/api/transactions/` | Execute idempotent money transfer | ✅ |
-| `POST` | `/api/transactions/system/initial-funds`| Inject initial liquidity | 🛡️ System User |
-
-### 🛡️ Administration (`/api/admin`)
-| Method | Endpoint | Description | Auth Required |
-|---|---|---|:---:|
-| `GET` | `/api/admin/users` | List all users and account statuses | 🛡️ Admin |
-| `GET` | `/api/admin/ledger` | Global view of all ledger entries | 🛡️ Admin |
-| `GET` | `/api/admin/transactions` | Global audit log of all transactions | 🛡️ Admin |
-| `GET` | `/api/admin/blocked-tokens` | List revoked/blacklisted JWT sessions | 🛡️ Admin |
-| `PATCH` | `/api/admin/users/:userId/status`| Update user account status | 🛡️ Admin |
+- Passwords are hashed with bcrypt and never returned by the API
+- Users can only send money from accounts they own; admin routes require a system user
+- Logged-out JWTs are blacklisted until they expire
+- The demo login can never produce an admin session, even if misconfigured
+- Recipient lookup returns only a masked name and an account status
+- Admin credentials come from environment variables; nothing secret is committed
 
 ---
 
-## 🔒 Security & Data Integrity Highlights
+## Roadmap
 
-* 🛡️ **Zero Direct Balance Modification**: Balances are never stored as a raw mutable number. They are derived directly from signed immutable ledger entries, eliminating unauthorized modifications.
-* 🛡️ **Strict Schema Protection**: Mongoose hooks strictly block `findOneAndUpdate`, `updateOne`, `deleteOne`, etc. on ledger items.
-* 🛡️ **Idempotency Guarantee**: Eliminates repeat transactions if network drops or users press submit repeatedly.
-* 🛡️ **JWT Blacklisting with TTL**: Revoked tokens are saved in MongoDB with auto-expiration TTL matching the token expiry.
-* 🛡️ **Password Security**: Passwords are hashed with `bcryptjs` using salted rounds.
+- Automated tests (Jest + Supertest against a MongoDB replica set) and a GitHub Actions pipeline
+- Rate limiting on auth endpoints, `httpOnly` / `secure` / `sameSite` cookie flags, and `helmet`
+- Store amounts as integer paise instead of floating-point rupees
+- Rely on the `httpOnly` cookie alone and stop keeping the token in `localStorage`
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the [ISC License](LICENSE).
+ISC
