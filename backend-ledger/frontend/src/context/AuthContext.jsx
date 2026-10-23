@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { authService, setUnauthorizedHandler } from '../services/api';
 import { useToast } from './ToastContext';
 
@@ -6,7 +7,6 @@ const AuthContext = createContext(null);
 
 const clearStoredSession = () => {
   localStorage.removeItem('user_details');
-  localStorage.removeItem('user_role');
   localStorage.removeItem('token');
 };
 
@@ -15,23 +15,22 @@ export const AuthProvider = ({ children }) => {
   const [role, setRole] = useState('user'); // 'user' | 'admin'
   const [loading, setLoading] = useState(true);
   const { showInfo } = useToast();
+  const queryClient = useQueryClient();
 
   // Role always comes from the backend's systemUser flag
   const applyUser = useCallback((userData) => {
-    const userRole = userData.systemUser ? 'admin' : 'user';
-
     setUser(userData);
-    setRole(userRole);
-
+    setRole(userData.systemUser ? 'admin' : 'user');
     localStorage.setItem('user_details', JSON.stringify(userData));
-    localStorage.setItem('user_role', userRole);
   }, []);
 
+  // Cached queries belong to the previous user, so they are dropped with the session
   const clearSession = useCallback(() => {
     setUser(null);
     setRole('user');
     clearStoredSession();
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
   // Several requests can fail with 401 at once; only the first one clears the session
   const expireSession = useCallback(() => {
@@ -58,7 +57,7 @@ export const AuthProvider = ({ children }) => {
       const parsed = JSON.parse(savedUser);
       setUser(parsed);
       setRole(parsed.systemUser ? 'admin' : 'user');
-    } catch (e) {
+    } catch {
       clearStoredSession();
       setLoading(false);
       return;

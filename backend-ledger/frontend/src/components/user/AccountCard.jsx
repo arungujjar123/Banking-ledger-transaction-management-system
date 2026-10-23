@@ -1,30 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { StatusBadge } from '../common/StatusBadge';
+import { Button } from '../ui/Button';
 import { Copy, Check, Wallet, RefreshCw } from 'lucide-react';
-import { accountService } from '../../services/api';
+import { useAccountBalance } from '../../hooks/queries';
+import { formatAmount } from '../../utils/format';
 
 export const AccountCard = ({ account, onSelectForTransfer }) => {
   const [copied, setCopied] = useState(false);
-  const [balance, setBalance] = useState(account.balance ?? null);
-  const [loadingBalance, setLoadingBalance] = useState(false);
-
-  const fetchBalance = async () => {
-    setLoadingBalance(true);
-    try {
-      const data = await accountService.getAccountBalance(account._id);
-      setBalance(data.balance);
-    } catch (e) {
-      console.warn('Failed to fetch balance', e);
-    } finally {
-      setLoadingBalance(false);
-    }
-  };
-
-  useEffect(() => {
-    if (account.balance === undefined) {
-      fetchBalance();
-    }
-  }, [account._id]);
+  const { data: balance, isFetching, refetch } = useAccountBalance(account._id);
 
   const copyId = () => {
     navigator.clipboard.writeText(account._id);
@@ -54,6 +37,7 @@ export const AccountCard = ({ account, onSelectForTransfer }) => {
                 <button
                   onClick={copyId}
                   className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5"
+                  aria-label="Copy account ID"
                   title="Copy Account ID"
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -70,21 +54,22 @@ export const AccountCard = ({ account, onSelectForTransfer }) => {
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span>Derived Ledger Balance</span>
             <button
-              onClick={fetchBalance}
-              disabled={loadingBalance}
+              onClick={() => refetch()}
+              disabled={isFetching}
               className="hover:text-emerald-400 transition-colors p-1"
+              aria-label="Refresh balance"
               title="Refresh Balance"
             >
-              <RefreshCw className={`w-3 h-3 ${loadingBalance ? 'animate-spin text-emerald-400' : ''}`} />
+              <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin text-emerald-400' : ''}`} />
             </button>
           </div>
 
           <div className="text-3xl font-extrabold text-white mt-1 flex items-baseline gap-1.5">
             <span className="text-emerald-400 text-xl">₹</span>
-            {loadingBalance ? (
+            {isFetching ? (
               <span className="text-slate-500 text-lg animate-pulse">Calculating...</span>
             ) : (
-              <span>{typeof balance === 'number' ? balance.toLocaleString('en-IN') : '0'}</span>
+              <span>{formatAmount(balance)}</span>
             )}
             <span className="text-xs font-normal text-slate-400">{account.currency || 'INR'}</span>
           </div>
@@ -94,12 +79,9 @@ export const AccountCard = ({ account, onSelectForTransfer }) => {
       {/* Action Footer */}
       {onSelectForTransfer && (
         <div className="mt-5 pt-4 border-t border-slate-800/80 flex items-center justify-end">
-          <button
-            onClick={() => onSelectForTransfer(account._id)}
-            className="w-full py-2 px-3 rounded-xl bg-emerald-950 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-all duration-200 text-center flex items-center justify-center gap-1.5"
-          >
+          <Button variant="secondary" fullWidth onClick={() => onSelectForTransfer(account._id)}>
             Transfer Funds from this Account
-          </button>
+          </Button>
         </div>
       )}
     </div>

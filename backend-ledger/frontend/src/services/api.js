@@ -22,76 +22,51 @@ export const setUnauthorizedHandler = (handler) => {
   unauthorizedHandler = handler;
 };
 
-// A 401 from any protected API means the session expired or was revoked.
-// Auth routes are excluded: a 401 there is a wrong password, not an expired session.
+// Every failed request rejects with a plain { message, status } object, so callers
+// never need to dig through axios internals.
+// A 401 from a protected API means the session expired or was revoked. Auth routes are
+// excluded: a 401 there is a wrong password, not an expired session.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    const status = err.response?.status;
     const isAuthRoute = err.config?.url?.startsWith('/auth/');
 
-    if (err.response?.status === 401 && !isAuthRoute && unauthorizedHandler) {
+    if (status === 401 && !isAuthRoute && unauthorizedHandler) {
       unauthorizedHandler();
     }
 
-    return Promise.reject(err);
+    return Promise.reject({
+      status,
+      message: err.response?.data?.message
+        || (err.response ? 'Something went wrong. Please try again.' : 'Network error. Please check your connection.'),
+    });
   }
 );
 
-export const generateIdempotencyKey = () => {
-  return 'ik_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
+export const generateIdempotencyKey = () => crypto.randomUUID();
+
+const saveToken = (data) => {
+  if (data.token) {
+    localStorage.setItem('token', data.token);
+  }
+  return data;
 };
 
 export const authService = {
-  login: async (email, password) => {
-    try {
-      const res = await api.post('/auth/login', { email, password });
-      if (res.data.token) {
-        localStorage.setItem('token', res.data.token);
-      }
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Login failed' };
-    }
-  },
+  login: (email, password) => api.post('/auth/login', { email, password }).then((res) => saveToken(res.data)),
 
-  register: async (name, email, password) => {
-    try {
-      const res = await api.post('/auth/register', { name, email, password });
-      if (res.data.token) {
-        localStorage.setItem('token', res.data.token);
-      }
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Registration failed' };
-    }
-  },
+  register: (name, email, password) => api.post('/auth/register', { name, email, password }).then((res) => saveToken(res.data)),
 
-  demoLogin: async () => {
-    try {
-      const res = await api.post('/auth/demo-login');
-      if (res.data.token) {
-        localStorage.setItem('token', res.data.token);
-      }
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Demo login failed' };
-    }
-  },
+  demoLogin: () => api.post('/auth/demo-login').then((res) => saveToken(res.data)),
 
-  me: async () => {
-    try {
-      const res = await api.get('/auth/me');
-      return res.data.user;
-    } catch (err) {
-      throw { status: err.response?.status, ...(err.response?.data || { message: 'Session check failed' }) };
-    }
-  },
+  me: () => api.get('/auth/me').then((res) => res.data.user),
 
   logout: async () => {
     try {
       await api.post('/auth/logout');
-    } catch (err) {
-      console.warn('Logout request completed with warning', err);
+    } catch {
+      // The token may already be invalid; the local session is cleared either way
     } finally {
       localStorage.removeItem('token');
     }
@@ -99,118 +74,42 @@ export const authService = {
 };
 
 export const accountService = {
-  createAccount: async () => {
-    try {
-      const res = await api.post('/accounts');
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to create account' };
-    }
-  },
+  createAccount: () => api.post('/accounts').then((res) => res.data),
 
-  getUserAccounts: async () => {
-    try {
-      const res = await api.get('/accounts');
-      return res.data.accounts || [];
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch accounts' };
-    }
-  },
+  getUserAccounts: () => api.get('/accounts').then((res) => res.data.accounts || []),
 
-  getAccountBalance: async (accountId) => {
-    try {
-      const res = await api.get(`/accounts/balance/${accountId}`);
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch balance' };
-    }
-  },
+  getAccountBalance: (accountId) => api.get(`/accounts/balance/${accountId}`).then((res) => res.data),
 
-  getUserLedger: async () => {
-    try {
-      const res = await api.get('/accounts/ledger');
-      return res.data.entries || [];
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch user ledger' };
-    }
-  }
+  getUserLedger: () => api.get('/accounts/ledger').then((res) => res.data.entries || []),
 };
 
 export const transactionService = {
-  createTransaction: async ({ fromAccount, toAccount, amount, idempotencyKey }) => {
-    try {
-      const res = await api.post('/transactions', {
-        fromAccount,
-        toAccount,
-        amount: Number(amount),
-        idempotencyKey: idempotencyKey || generateIdempotencyKey(),
-      });
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Transaction failed' };
-    }
-  },
+  createTransaction: ({ fromAccount, toAccount, amount, idempotencyKey }) =>
+    api.post('/transactions', {
+      fromAccount,
+      toAccount,
+      amount: Number(amount),
+      idempotencyKey: idempotencyKey || generateIdempotencyKey(),
+    }).then((res) => res.data),
 
-  createInitialFunds: async ({ toAccount, amount, idempotencyKey }) => {
-    try {
-      const res = await api.post('/transactions/system/initial-funds', {
-        toAccount,
-        amount: Number(amount),
-        idempotencyKey: idempotencyKey || generateIdempotencyKey(),
-      });
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Initial funding failed' };
-    }
-  },
+  createInitialFunds: ({ toAccount, amount, idempotencyKey }) =>
+    api.post('/transactions/system/initial-funds', {
+      toAccount,
+      amount: Number(amount),
+      idempotencyKey: idempotencyKey || generateIdempotencyKey(),
+    }).then((res) => res.data),
 };
 
-// Pure Database Services for Admin Panel (No Mock Fallbacks)
 export const adminService = {
-  getAllUsers: async () => {
-    try {
-      const res = await api.get('/admin/users');
-      return res.data.users || [];
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch users from database' };
-    }
-  },
+  getAllUsers: () => api.get('/admin/users').then((res) => res.data.users || []),
 
-  getAllLedgerEntries: async () => {
-    try {
-      const res = await api.get('/admin/ledger');
-      return res.data.entries || [];
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch ledger entries from database' };
-    }
-  },
+  getAllLedgerEntries: () => api.get('/admin/ledger').then((res) => res.data.entries || []),
 
-  getBlockedTokens: async () => {
-    try {
-      const res = await api.get('/admin/blocked-tokens');
-      return res.data.tokens || [];
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch blocked tokens from database' };
-    }
-  },
+  getBlockedTokens: () => api.get('/admin/blocked-tokens').then((res) => res.data.tokens || []),
 
-  getAllTransactions: async () => {
-    try {
-      const res = await api.get('/admin/transactions');
-      return res.data.transactions || [];
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to fetch transactions from database' };
-    }
-  },
+  getAllTransactions: () => api.get('/admin/transactions').then((res) => res.data.transactions || []),
 
-  updateUserStatus: async (userId, status) => {
-    try {
-      const res = await api.patch(`/admin/users/${userId}/status`, { status });
-      return res.data;
-    } catch (err) {
-      throw err.response?.data || { message: 'Failed to update user status in database' };
-    }
-  }
+  updateUserStatus: (userId, status) => api.patch(`/admin/users/${userId}/status`, { status }).then((res) => res.data),
 };
 
 export default api;

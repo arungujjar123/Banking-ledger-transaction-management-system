@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-export const StatCard = ({ title, value, subtitle, icon: Icon, trend, color = 'emerald' }) => {
+export const StatCard = ({ title, value, subtitle, icon: Icon }) => {
   return (
     <motion.div
       whileHover={{ y: -3 }}
@@ -29,15 +29,6 @@ export const StatCard = ({ title, value, subtitle, icon: Icon, trend, color = 'e
           </div>
         )}
       </div>
-
-      {trend && (
-        <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center gap-2 text-xs">
-          <span className={`font-semibold ${trend.positive ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {trend.value}
-          </span>
-          <span className="text-slate-400">{trend.label}</span>
-        </div>
-      )}
     </motion.div>
   );
 };

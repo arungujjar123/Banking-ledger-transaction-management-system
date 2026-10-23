@@ -1,3 +1,14 @@
+const amountFormatter = new Intl.NumberFormat('en-IN', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+// 45000 -> "45,000.00" (for layouts that style the ₹ symbol separately)
+export const formatAmount = (amount) => amountFormatter.format(amount || 0);
+
+// 45000 -> "₹45,000.00"
+export const formatCurrency = (amount) => `₹${formatAmount(amount)}`;
+
 // MongoDB ObjectIds embed their creation time (seconds) in the first 4 bytes,
 // so documents saved before timestamps were enabled still get a date
 export const getCreatedAt = (doc) => {
@@ -9,3 +20,7 @@ export const getCreatedAt = (doc) => {
 
   return null;
 };
+
+export const formatDateTime = (date) => (date ? new Date(date).toLocaleString() : '—');
+
+export const formatDate = (date) => (date ? new Date(date).toLocaleDateString() : '—');
