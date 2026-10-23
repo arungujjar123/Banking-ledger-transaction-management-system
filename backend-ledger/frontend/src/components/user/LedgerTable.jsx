@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { Card, CardHeader } from '../ui/Card';
 import { DataTable } from '../ui/DataTable';
 import { SearchInput } from '../ui/SearchInput';
+import { SegmentedControl } from '../ui/SegmentedControl';
 import { EmptyState, ErrorState } from '../ui/States';
 import { Badge } from '../common/StatusBadge';
 import { cn } from '../../utils/cn';
@@ -156,21 +157,7 @@ export const LedgerTable = ({
               className="w-full sm:w-52"
             />
 
-            <div role="group" aria-label="Filter by entry type" className="flex p-[3px] rounded-control bg-surface-2 border border-border">
-              {filters.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setFilterType(f.value)}
-                  aria-pressed={filterType === f.value}
-                  className={cn(
-                    'px-3 h-[30px] rounded-lg text-sm transition-colors',
-                    filterType === f.value ? 'bg-surface text-fg font-semibold shadow-card dark:bg-border' : 'text-muted hover:text-fg'
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl label="Filter by entry type" options={filters} value={filterType} onChange={setFilterType} />
           </>
         }
       />
