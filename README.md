@@ -2,6 +2,7 @@
 
 A full-stack double-entry banking ledger. Balances are derived from an immutable ledger, transfers are atomic and idempotent, and concurrent transfers can never overdraw an account.
 
+[![CI](https://github.com/arungujjar123/Banking-ledger-transaction-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/arungujjar123/Banking-ledger-transaction-management-system/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/Live_demo-Render-46E3B7?logo=render&logoColor=white)](https://banking-ledger-lpzw.onrender.com)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
@@ -82,7 +83,7 @@ Measured against a MongoDB 7 replica set:
 | ₹9,100 balance, 20 parallel transfers of ₹1,000 | not measured | 9 succeeded, balance **₹100** |
 | Same idempotency key sent 5 times in parallel | not measured | **1** transaction created |
 
-The logic lives in [`backend/src/services/transfer.service.js`](backend-ledger/backend/src/services/transfer.service.js).
+The logic lives in [`backend/src/services/transfer.service.js`](backend-ledger/backend/src/services/transfer.service.js), and these scenarios run on every pull request as automated tests in [`backend/tests/concurrency.test.js`](backend-ledger/backend/tests/concurrency.test.js). Removing the lock makes those tests fail (5 of 5 and 20 of 20 parallel transfers go through).
 
 ---
 
@@ -111,6 +112,7 @@ The logic lives in [`backend/src/services/transfer.service.js`](backend-ledger/b
 | Frontend | React 18, Vite 5, React Router 6, TanStack Query 5, Tailwind CSS 3 (CSS-variable theme tokens), Framer Motion, Axios, Lucide icons, ESLint |
 | Backend | Node.js 20+, Express 5, Mongoose 9, JSON Web Tokens, bcryptjs, Nodemailer |
 | Database | MongoDB replica set or Atlas (multi-document transactions) |
+| Testing & CI | Jest + Supertest against a real MongoDB replica set, GitHub Actions |
 | Hosting | Render (a single web service serves both the API and the built frontend) |
 
 ---
@@ -131,6 +133,7 @@ backend-ledger/
 │           ├── transfer.service.js Atomic, idempotent transfers with sender locking
 │           ├── seed.service.js     Admin and demo user seeding
 │           └── email.service.js
+│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin)
 └── frontend/                       React + Vite client
     └── src/
         ├── pages/                  User and admin pages, login, register, 404
@@ -247,6 +250,26 @@ npm run lint
 
 Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explore the demo account** if the demo variables are set.
 
+### Tests
+
+The backend has 55 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
+
+- **Transfers:** balances, ledger entries, validation, ownership, inactive accounts, authentication
+- **Concurrency:** parallel transfers never overspend, parallel fundings all apply
+- **Idempotency:** replays, the same key sent in parallel, and a key reused for a different transfer
+- **Auth and admin:** registration, login, logout revocation, demo login safety, admin-only routes, initial funds
+- **Accounts:** balance ownership, recipient lookup, ledger counterparties, name masking
+- **Ledger:** entries cannot be updated or deleted, and every transaction has a matching debit and credit
+
+```bash
+cd backend-ledger/backend
+npm test   # uses mongodb://127.0.0.1:27017/ledger_test?replicaSet=rs0 by default
+```
+
+Point `TEST_MONGO_URI` elsewhere if needed. The suite drops its database before each test, so it refuses to run unless the database name contains `test`.
+
+GitHub Actions runs the backend tests (with a MongoDB replica set) and the frontend lint and build on every push and pull request.
+
 ---
 
 ## Deployment
@@ -277,7 +300,6 @@ Set the environment variables from the table above in the Render dashboard. [`re
 
 ## Roadmap
 
-- Automated tests (Jest + Supertest against a MongoDB replica set) and a GitHub Actions pipeline
 - Rate limiting on auth endpoints, `httpOnly` / `secure` / `sameSite` cookie flags, and `helmet`
 - Store amounts as integer paise instead of floating-point rupees
 - Rely on the `httpOnly` cookie alone and stop keeping the token in `localStorage`

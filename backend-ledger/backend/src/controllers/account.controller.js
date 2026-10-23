@@ -1,4 +1,5 @@
 const accountModel = require("../models/account.model");
+const maskName = require("../utils/maskName");
 const ledgerModel = require("../models/ledger.model");
 
 async function createAccountController(req, res) {
@@ -72,20 +73,6 @@ async function getUserLedgerController(req, res) {
 }
 
 const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i
-
-// "Rahul Kumar Sharma" -> "Rahul S."; enough to confirm a recipient without exposing a full name
-function maskName(name) {
-    const parts = (name || "").trim().split(/\s+/).filter(Boolean)
-
-    if (parts.length === 0) {
-        return "Account holder"
-    }
-
-    const first = parts[0]
-    const last = parts[parts.length - 1]
-
-    return parts.length > 1 ? `${first} ${last[0].toUpperCase()}.` : first
-}
 
 /**
  * - GET /api/accounts/lookup/:accountId
