@@ -1,2 +1,0 @@
-Email: admin@ledger.internal
-Password: adminpassword123

@@ -46,6 +46,12 @@ async function createTransaction(req, res) {
         })
     }
 
+    if (!fromUserAccount.user.equals(req.user._id)) {
+        return res.status(403).json({
+            message: "You can only transfer from your own account"
+        })
+    }
+
     /**
      * 2. Validate idempotency key
      */
@@ -128,10 +134,6 @@ async function createTransaction(req, res) {
             transaction: transaction._id,
             type: "DEBIT"
         } ], { session })
-             
-        await (() => {
-            return new Promise((resolve) => setTimeout(resolve, 15 * 1000));
-        })()
 
         const creditLedgerEntry = await ledgerModel.create([ {
             account: toAccount,
