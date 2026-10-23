@@ -1,22 +1,32 @@
 import React, { useState } from 'react';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { PageHeader } from '../components/ui/PageHeader';
-import { Card } from '../components/ui/Card';
+import { Card, CardHeader } from '../components/ui/Card';
 import { DataTable } from '../components/ui/DataTable';
+import { SearchInput } from '../components/ui/SearchInput';
 import { useAdminTransactions } from '../hooks/queries';
-import { formatCurrency } from '../utils/format';
-import { Receipt, Search } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { formatCurrency, formatDateTime, getCreatedAt, shortId } from '../utils/format';
+
+const idCell = (id) => <span title={id}>{shortId(id)}</span>;
 
 const columns = [
-  { key: '_id', header: 'Txn ID', className: 'font-mono font-semibold text-slate-200' },
-  { key: 'fromAccount', header: 'From Account', className: 'font-mono text-slate-400' },
-  { key: 'toAccount', header: 'To Account', className: 'font-mono text-slate-400' },
-  { key: 'amount', header: 'Amount', className: 'font-extrabold text-white text-sm', render: (t) => formatCurrency(t.amount) },
+  { key: 'createdAt', header: 'Date', className: 'text-muted whitespace-nowrap', render: (t) => formatDateTime(getCreatedAt(t)) },
+  { key: 'fromAccount', header: 'From', className: 'font-mono text-[13px] text-muted', render: (t) => idCell(t.fromAccount) },
+  { key: 'toAccount', header: 'To', className: 'font-mono text-[13px] text-muted', render: (t) => idCell(t.toAccount) },
   { key: 'status', header: 'Status', render: (t) => <StatusBadge status={t.status} /> },
-  { key: 'idempotencyKey', header: 'Idempotency Key', className: 'font-mono text-[11px] text-slate-400 truncate max-w-xs' },
+  { key: 'idempotencyKey', header: 'Idempotency key', className: 'font-mono text-xs text-subtle max-w-[220px] truncate' },
+  {
+    key: 'amount',
+    header: 'Amount',
+    align: 'right',
+    className: 'font-semibold tabular-nums whitespace-nowrap',
+    render: (t) => formatCurrency(t.amount),
+  },
 ];
 
 export const AdminTransactions = () => {
+  useDocumentTitle('All transactions');
   const { data: transactions = [], isLoading, error, refetch } = useAdminTransactions();
   const [search, setSearch] = useState('');
 
@@ -27,26 +37,22 @@ export const AdminTransactions = () => {
 
   return (
     <>
-      <PageHeader
-        icon={Receipt}
-        title="All System Transactions"
-        description="Audit transactions, processing statuses, and idempotency keys"
-        actions={
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
+      <PageHeader title="All transactions" description="Every transfer in the system with its status and idempotency key." />
+
+      <Card className="p-0">
+        <CardHeader
+          divided
+          title="Transactions"
+          subtitle={`${transactions.length} total`}
+          actions={
+            <SearchInput
+              label="Search by ID, account or key"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Txn ID / Account / Key..."
-              aria-label="Search transactions"
-              className="bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 w-64"
+              className="w-full sm:w-64"
             />
-          </div>
-        }
-      />
-
-      <Card>
+          }
+        />
         <DataTable
           columns={columns}
           rows={filtered}
@@ -54,6 +60,7 @@ export const AdminTransactions = () => {
           error={error?.message}
           onRetry={() => refetch()}
           emptyTitle={transactions.length === 0 ? 'No transactions yet' : 'No transactions match your search'}
+          minWidth={760}
         />
       </Card>
     </>

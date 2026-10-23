@@ -1,31 +1,23 @@
 import React from 'react';
-import { ShieldAlert } from 'lucide-react';
 import { Card, CardHeader } from '../ui/Card';
 import { DataTable } from '../ui/DataTable';
-import { formatDateTime } from '../../utils/format';
+import { formatDateTime, shortId } from '../../utils/format';
 
 const columns = [
-  { key: '_id', header: 'Record ID', className: 'font-mono font-medium text-slate-300' },
+  { key: 'createdAt', header: 'Revoked at', className: 'text-muted whitespace-nowrap', render: (item) => formatDateTime(item.createdAt) },
   {
     key: 'token',
-    header: 'Revoked Token snippet',
-    className: 'font-mono text-slate-400 max-w-xs truncate',
-    render: (item) => (
-      <span className="text-rose-300 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/20">
-        {item.token ? item.token.substring(0, 45) + '...' : '[REVOKED]'}
-      </span>
-    ),
+    header: 'Token',
+    className: 'font-mono text-xs text-subtle max-w-xs truncate',
+    render: (item) => (item.token ? item.token.substring(0, 32) + '…' : 'Revoked'),
   },
-  { key: 'reason', header: 'Revocation Reason', className: 'font-semibold text-slate-300', render: (item) => item.reason || 'User Logout' },
-  { key: 'createdAt', header: 'Blacklisted At', className: 'text-slate-400', render: (item) => formatDateTime(item.createdAt) },
+  { key: 'reason', header: 'Reason', className: 'text-muted', render: (item) => item.reason || 'User logout' },
+  { key: '_id', header: 'Record', className: 'font-mono text-[13px] text-subtle', render: (item) => <span title={item._id}>{shortId(item._id)}</span> },
 ];
 
 export const BlockedTokensTable = ({ tokens = [], loading = false, error = null, onRetry }) => (
-  <Card>
-    <CardHeader
-      title={<><ShieldAlert className="w-5 h-5 text-rose-400" /> Security & Blacklisted Tokens</>}
-      subtitle="JWT tokens revoked upon user logout or security invalidation"
-    />
+  <Card className="p-0">
+    <CardHeader divided title="Blocked tokens" subtitle="Sign-in tokens revoked when users log out. They expire from this list after 3 days." />
     <DataTable
       columns={columns}
       rows={tokens}
@@ -33,7 +25,7 @@ export const BlockedTokensTable = ({ tokens = [], loading = false, error = null,
       error={error}
       onRetry={onRetry}
       emptyTitle="No blocked tokens"
-      emptyDescription="Tokens are revoked here when users log out."
+      emptyDescription="Tokens appear here when users log out."
     />
   </Card>
 );

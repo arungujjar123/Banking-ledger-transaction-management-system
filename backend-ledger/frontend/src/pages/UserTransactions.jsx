@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
+import { Send } from 'lucide-react';
 import { LedgerTable } from '../components/user/LedgerTable';
 import { TransferModal } from '../components/user/TransferModal';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { useAccounts, useLedger } from '../hooks/queries';
-import { ArrowLeftRight, Plus } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export const UserTransactions = () => {
+  useDocumentTitle('Transactions');
   const ledgerQuery = useLedger();
   const { data: userAccounts = [] } = useAccounts();
   const [isTransferOpen, setIsTransferOpen] = useState(false);
@@ -14,12 +16,11 @@ export const UserTransactions = () => {
   return (
     <>
       <PageHeader
-        icon={ArrowLeftRight}
-        title="Transactions & Double-Entry Ledger"
-        description="Audit history of all credits, debits, and fund transfers from MongoDB"
+        title="Transactions"
+        description="The full debit and credit history of your accounts."
         actions={
-          <Button variant="solid" icon={Plus} onClick={() => setIsTransferOpen(true)}>
-            New Transfer
+          <Button icon={Send} onClick={() => setIsTransferOpen(true)} disabled={userAccounts.length === 0}>
+            Transfer funds
           </Button>
         }
       />

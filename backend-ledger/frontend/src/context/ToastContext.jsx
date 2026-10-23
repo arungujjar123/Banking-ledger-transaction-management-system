@@ -4,6 +4,12 @@ import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 const ToastContext = createContext(null);
 
+const toastStyles = {
+  success: { icon: CheckCircle2, iconClass: 'text-accent' },
+  error: { icon: AlertCircle, iconClass: 'text-debit' },
+  info: { icon: Info, iconClass: 'text-info' },
+};
+
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
@@ -27,34 +33,31 @@ export const ToastProvider = ({ children }) => {
   return (
     <ToastContext.Provider value={{ addToast, removeToast, showSuccess, showError, showInfo }}>
       {children}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-[60] flex flex-col gap-2 sm:max-w-sm sm:w-full pointer-events-none" aria-live="polite">
         <AnimatePresence>
-          {toasts.map((toast) => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 50, scale: 0.9 }}
-              className={`pointer-events-auto flex items-center gap-3 p-4 rounded-xl shadow-xl border backdrop-blur-md text-sm font-medium ${
-                toast.type === 'success'
-                  ? 'bg-emerald-950/90 text-emerald-200 border-emerald-500/40 shadow-emerald-900/30'
-                  : toast.type === 'error'
-                  ? 'bg-rose-950/90 text-rose-200 border-rose-500/40 shadow-rose-900/30'
-                  : 'bg-slate-900/90 text-slate-200 border-emerald-500/20 shadow-slate-950/40'
-              }`}
-            >
-              {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
-              {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />}
-              {toast.type === 'info' && <Info className="w-5 h-5 text-emerald-400 shrink-0" />}
-              <span className="flex-1">{toast.message}</span>
-              <button
-                onClick={() => removeToast(toast.id)}
-                className="text-slate-400 hover:text-white transition-colors p-1"
+          {toasts.map((toast) => {
+            const style = toastStyles[toast.type] || toastStyles.info;
+            const Icon = style.icon;
+            return (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: 40 }}
+                className="pointer-events-auto flex items-start gap-3 p-4 rounded-card border border-border bg-surface text-fg shadow-lg"
               >
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          ))}
+                <Icon className={`w-5 h-5 shrink-0 mt-px ${style.iconClass}`} aria-hidden="true" />
+                <span className="flex-1 font-medium">{toast.message}</span>
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  aria-label="Dismiss notification"
+                  className="text-subtle hover:text-fg transition-colors -m-1 p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
     </ToastContext.Provider>

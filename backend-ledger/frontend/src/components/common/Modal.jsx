@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
+import { IconButton } from '../ui/Button';
 
 export const Modal = ({ isOpen, onClose, title, children }) => {
   useEffect(() => {
@@ -19,42 +20,32 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md"
+            className="fixed inset-0 bg-slate-950/50 dark:bg-black/70 backdrop-blur-[2px]"
           />
 
-          {/* Modal Container */}
           <motion.div
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            initial={{ opacity: 0, scale: 0.97, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.2 }}
-            className="relative w-full max-w-lg glass-panel rounded-2xl p-6 shadow-2xl border border-emerald-500/30 z-10 overflow-hidden"
+            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            transition={{ duration: 0.15 }}
+            className="relative w-full max-w-lg rounded-2xl border border-border bg-surface p-6 shadow-xl"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-emerald-900/30">
-              <h3 id="modal-title" className="text-lg font-bold text-white flex items-center gap-2">
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <h3 id="modal-title" className="text-lg font-semibold text-fg">
                 {title}
               </h3>
-              <button
-                onClick={onClose}
-                aria-label="Close dialog"
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <IconButton icon={X} label="Close dialog" bordered={false} onClick={onClose} className="-mr-2" />
             </div>
 
-            {/* Content */}
             <div>{children}</div>
           </motion.div>
         </div>

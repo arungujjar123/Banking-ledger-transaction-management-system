@@ -1,30 +1,29 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { 
-  LayoutDashboard, 
-  CreditCard, 
-  ArrowLeftRight, 
-  Users, 
-  BookOpenCheck, 
-  ShieldAlert, 
+import { cn } from '../../utils/cn';
+import {
+  LayoutDashboard,
+  CreditCard,
+  ArrowLeftRight,
+  Users,
+  BookOpenCheck,
+  ShieldAlert,
   Receipt,
-  Sparkles,
-  Layers
 } from 'lucide-react';
 
 const userNavItems = [
   { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
-  { label: 'Accounts Info', path: '/accounts', icon: CreditCard },
-  { label: 'Transactions & Ledger', path: '/transactions', icon: ArrowLeftRight },
+  { label: 'Accounts', path: '/accounts', icon: CreditCard },
+  { label: 'Transactions', path: '/transactions', icon: ArrowLeftRight },
 ];
 
 const adminNavItems = [
-  { label: 'Admin Overview', path: '/admin', icon: LayoutDashboard },
-  { label: 'User Approvals', path: '/admin/users', icon: Users },
-  { label: 'Global Ledger', path: '/admin/ledger', icon: BookOpenCheck },
-  { label: 'All Transactions', path: '/admin/transactions', icon: Receipt },
-  { label: 'Blocked Tokens', path: '/admin/blocked-tokens', icon: ShieldAlert },
+  { label: 'Overview', path: '/admin', icon: LayoutDashboard },
+  { label: 'Users', path: '/admin/users', icon: Users },
+  { label: 'Ledger', path: '/admin/ledger', icon: BookOpenCheck },
+  { label: 'Transactions', path: '/admin/transactions', icon: Receipt },
+  { label: 'Blocked tokens', path: '/admin/blocked-tokens', icon: ShieldAlert },
 ];
 
 // Shared by the desktop sidebar and the mobile drawer in Navbar
@@ -33,9 +32,9 @@ export const SidebarNav = ({ onNavigate }) => {
   const navItems = role === 'admin' ? adminNavItems : userNavItems;
 
   return (
-    <nav className="space-y-1">
-      <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-        Main Menu
+    <nav aria-label="Main" className="flex flex-col gap-1">
+      <div className="px-3 pb-2 text-xs font-semibold text-subtle">
+        {role === 'admin' ? 'Admin' : 'Menu'}
       </div>
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -46,14 +45,13 @@ export const SidebarNav = ({ onNavigate }) => {
             onClick={onNavigate}
             end={item.path === '/dashboard' || item.path === '/admin'}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                isActive
-                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30 shadow-glow-emerald font-semibold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
-              }`
+              cn(
+                'flex items-center gap-2.5 px-3 h-10 rounded-control transition-colors',
+                isActive ? 'bg-accent-soft text-accent-fg font-semibold' : 'text-muted font-medium hover:bg-surface-2 hover:text-fg'
+              )
             }
           >
-            <Icon className="w-4 h-4 text-emerald-400 shrink-0" />
+            <Icon className="w-[18px] h-[18px] shrink-0" aria-hidden="true" />
             <span>{item.label}</span>
           </NavLink>
         );
@@ -62,37 +60,8 @@ export const SidebarNav = ({ onNavigate }) => {
   );
 };
 
-export const Sidebar = () => {
-  const { role } = useAuth();
-
-  return (
-    <aside className="w-64 shrink-0 hidden md:block min-h-[calc(100vh-4rem)] border-r border-emerald-900/20 bg-slate-950/60 p-4">
-      {/* Role Banner */}
-      <div className="mb-6 px-3 py-2.5 rounded-xl bg-slate-900/80 border border-emerald-500/20 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-semibold text-slate-300">
-            {role === 'admin' ? 'ADMINISTRATOR' : 'STANDARD USER'}
-          </span>
-        </div>
-        <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/20">
-          Live
-        </span>
-      </div>
-
-      {/* Navigation List */}
-      <SidebarNav />
-
-      {/* Quick Info Box at bottom of Sidebar */}
-      <div className="mt-12 p-4 rounded-xl bg-gradient-to-b from-emerald-950/40 to-slate-900/40 border border-emerald-500/20">
-        <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs mb-1">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Double-Entry Protected</span>
-        </div>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          All financial movements create immutable Credit & Debit ledger entries.
-        </p>
-      </div>
-    </aside>
-  );
-};
+export const Sidebar = () => (
+  <aside className="w-60 shrink-0 hidden md:block border-r border-border bg-surface px-3.5 py-5">
+    <SidebarNav />
+  </aside>
+);

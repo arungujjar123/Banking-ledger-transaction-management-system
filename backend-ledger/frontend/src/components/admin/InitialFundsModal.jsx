@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Send, RefreshCw } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
 import { generateIdempotencyKey } from '../../services/api';
 import { useDisburseFunds } from '../../hooks/queries';
 import { useToast } from '../../context/ToastContext';
-import { DollarSign, RefreshCw, Send } from 'lucide-react';
+import { accountLabel } from '../../utils/format';
 
 export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
   const [toAccount, setToAccount] = useState('');
@@ -45,69 +46,63 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Disburse System Initial Funds">
+    <Modal isOpen={isOpen} onClose={onClose} title="Add initial funds">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-emerald-950/40 p-3.5 rounded-xl border border-emerald-500/30 text-xs">
-          <div className="flex items-center gap-2 text-emerald-300 font-bold mb-1">
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-            System Reserve Transfer
-          </div>
-          <p className="text-slate-300 text-[11px] leading-relaxed">
-            This operation transfers initial capital from the System Reserve account to{' '}
-            <span className="font-bold text-emerald-300">{targetUser?.name || 'Selected User'}</span>&apos;s account via double-entry ledger.
-          </p>
-        </div>
+        <p className="text-muted leading-relaxed">
+          Moves money from the system reserve account to{' '}
+          <span className="font-semibold text-fg">{targetUser?.name || 'the selected user'}</span>. It is recorded as a normal debit and credit in the ledger.
+        </p>
 
         {targetAccounts.length > 0 ? (
-          <Select label="Destination Account" value={toAccount} onChange={(e) => setToAccount(e.target.value)} mono required>
+          <Select label="Destination account" value={toAccount} onChange={(e) => setToAccount(e.target.value)} required>
             {targetAccounts.map((acc) => (
               <option key={acc._id} value={acc._id}>
-                Account {acc._id} ({acc.status})
+                {accountLabel(acc._id)} ({acc.status.toLowerCase()})
               </option>
             ))}
           </Select>
         ) : (
           <Input
-            label="Destination Account"
+            label="Destination account ID"
             value={toAccount}
             onChange={(e) => setToAccount(e.target.value)}
-            placeholder="Enter Account ID (e.g. 65e31a890123...)"
+            placeholder="24-character account ID"
             mono
             required
           />
         )}
 
         <Input
-          label="Initial Amount (INR)"
+          label="Amount"
           prefix="₹"
           type="number"
           min="1"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="font-bold"
+          className="tabular-nums"
           required
         />
 
-        <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 text-xs">
-          <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span className="font-semibold text-emerald-400">Idempotency Key</span>
+        <div className="rounded-control border border-border bg-surface-2 p-3">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="font-semibold text-muted">Idempotency key</span>
             <button
               type="button"
               onClick={() => setIdempotencyKey(generateIdempotencyKey())}
-              className="text-slate-400 hover:text-white flex items-center gap-1"
+              className="flex items-center gap-1 text-muted hover:text-fg transition-colors"
             >
-              <RefreshCw className="w-3 h-3" /> Refresh
+              <RefreshCw className="w-3 h-3" /> New key
             </button>
           </div>
-          <p className="font-mono text-[11px] text-slate-300 truncate">{idempotencyKey}</p>
+          <p className="font-mono text-xs text-subtle truncate mt-1">{idempotencyKey}</p>
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" variant="solid" icon={Send} loading={disburse.isPending} className="px-5 py-2.5">
-            Disburse Funds
+          <Button type="submit" icon={Send} loading={disburse.isPending} loadingText="Adding...">
+            Add funds
           </Button>
         </div>
       </form>

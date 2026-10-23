@@ -1,16 +1,15 @@
 import React from 'react';
 import { UserManagementPanel } from '../components/admin/UserManagementPanel';
 import { PageHeader } from '../components/ui/PageHeader';
-import { Users } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-export const AdminUsers = () => (
-  <>
-    <PageHeader
-      icon={Users}
-      title="User Account Approvals & Management"
-      description="Approve, freeze, or disburse initial reserve funds to registered user accounts"
-    />
+export const AdminUsers = () => {
+  useDocumentTitle('Users');
 
-    <UserManagementPanel />
-  </>
-);
+  return (
+    <>
+      <PageHeader title="Users" description="New accounts start as pending until an admin approves them." />
+      <UserManagementPanel />
+    </>
+  );
+};

@@ -1,39 +1,60 @@
+// Colors come from CSS variables in src/index.css, so one class name (e.g. `bg-surface`)
+// works in both themes. The `dark` class on <html> swaps the variable values.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        brand: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-          950: '#022c22',
+        bg: token('bg'),
+        surface: {
+          DEFAULT: token('surface'),
+          2: token('surface-2'),
         },
-        dark: {
-          900: '#0b1311',
-          800: '#121f1c',
-          700: '#1a2b27',
-          600: '#253d38',
-        }
+        border: {
+          DEFAULT: token('border'),
+          strong: token('border-strong'),
+        },
+        fg: token('fg'),
+        muted: token('muted'),
+        subtle: token('subtle'),
+        accent: {
+          DEFAULT: token('accent'),
+          hover: token('accent-hover'),
+          soft: token('accent-soft'),
+          fg: token('accent-fg'),
+        },
+        'on-accent': token('on-accent'),
+        debit: {
+          DEFAULT: token('debit'),
+          soft: token('debit-soft'),
+        },
+        warn: {
+          DEFAULT: token('warn'),
+          soft: token('warn-soft'),
+        },
+        info: {
+          DEFAULT: token('info'),
+          soft: token('info-soft'),
+        },
       },
       fontFamily: {
-        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
+      borderRadius: {
+        control: '10px',
+        card: '14px',
       },
       boxShadow: {
-        'glow-emerald': '0 0 25px -5px rgba(16, 185, 129, 0.3)',
-        'glow-emerald-lg': '0 0 40px -5px rgba(16, 185, 129, 0.4)',
-      }
+        card: '0 1px 2px rgb(16 24 40 / 0.06)',
+      },
     },
   },
   plugins: [],
