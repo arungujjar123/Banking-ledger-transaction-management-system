@@ -20,6 +20,13 @@ const accountSchema = new mongoose.Schema({
         type: String,
         required: [ true, "Currency is required for creating an account" ],
         default: "INR"
+    },
+    // Incremented by every outgoing transfer so concurrent transfers from the same
+    // account conflict inside MongoDB transactions (see services/transfer.service.js)
+    lockVersion: {
+        type: Number,
+        default: 0,
+        select: false
     }
 }, {
     timestamps: true
@@ -27,8 +34,9 @@ const accountSchema = new mongoose.Schema({
 
 accountSchema.index({ user: 1, status: 1 })
 
-accountSchema.methods.getBalance = async function () {
-    const balanceData = await ledgerModel.aggregate([
+// Pass a session to read the balance inside a transaction (sees that transaction's snapshot)
+accountSchema.methods.getBalance = async function (session) {
+    const pipeline = ledgerModel.aggregate([
         { $match: { account: this._id } },
         {
             $group: {
@@ -60,6 +68,12 @@ accountSchema.methods.getBalance = async function () {
             }
         }
     ])
+
+    if (session) {
+        pipeline.session(session)
+    }
+
+    const balanceData = await pipeline
 
     if (balanceData.length === 0) {
         return 0
