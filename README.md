@@ -217,15 +217,15 @@ cd Banking-ledger-transaction-management-system
 
 ---
 
-## 🔑 Default Administrator Credentials
+## 🔑 Administrator Account
 
-After running `npm run seed:admin`, you can log in to access the Admin Suite:
+Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `backend/.env`. The admin user and its system account are created automatically when the server starts (or run `npm run seed:admin` manually). Log in with those credentials to access the Admin Suite:
 
 | Parameter | Value |
 |---|---|
 | **Role** | System Administrator |
-| **Email** | `admin@ledger.internal` |
-| **Password** | `adminpassword123` |
+| **Email** | value of `ADMIN_EMAIL` |
+| **Password** | value of `ADMIN_PASSWORD` |
 | **Permissions** | System-wide Ledger, User Management, Initial Fund Distribution |
 
 ---
