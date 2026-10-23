@@ -10,17 +10,21 @@ export const UserTransactions = () => {
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [userAccounts, setUserAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const entries = await accountService.getUserLedger();
+      const [entries, accs] = await Promise.all([
+        accountService.getUserLedger(),
+        accountService.getUserAccounts(),
+      ]);
       setLedgerEntries(entries);
-      const accs = await accountService.getUserAccounts();
       setUserAccounts(accs);
     } catch (e) {
-      console.warn('Error loading transactions data', e);
+      setError(e.message || 'Failed to load transactions');
     } finally {
       setLoading(false);
     }
@@ -55,7 +59,7 @@ export const UserTransactions = () => {
             </button>
           </div>
 
-          <LedgerTable entries={ledgerEntries} />
+          <LedgerTable entries={ledgerEntries} loading={loading} error={error} onRetry={loadData} />
         </main>
       </div>
 

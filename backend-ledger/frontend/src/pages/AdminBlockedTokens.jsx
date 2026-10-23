@@ -7,9 +7,23 @@ import { ShieldAlert } from 'lucide-react';
 
 export const AdminBlockedTokens = () => {
   const [tokens, setTokens] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadTokens = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setTokens(await adminService.getBlockedTokens());
+    } catch (e) {
+      setError(e.message || 'Failed to load blocked tokens');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    adminService.getBlockedTokens().then((data) => setTokens(data));
+    loadTokens();
   }, []);
 
   return (
@@ -28,7 +42,7 @@ export const AdminBlockedTokens = () => {
             </p>
           </div>
 
-          <BlockedTokensTable tokens={tokens} />
+          <BlockedTokensTable tokens={tokens} loading={loading} error={error} onRetry={loadTokens} />
         </main>
       </div>
     </div>

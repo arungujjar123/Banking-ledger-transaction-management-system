@@ -7,9 +7,23 @@ import { BookOpenCheck } from 'lucide-react';
 
 export const AdminLedger = () => {
   const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadEntries = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setEntries(await adminService.getAllLedgerEntries());
+    } catch (e) {
+      setError(e.message || 'Failed to load ledger entries');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    adminService.getAllLedgerEntries().then((data) => setEntries(data));
+    loadEntries();
   }, []);
 
   return (
@@ -28,7 +42,7 @@ export const AdminLedger = () => {
             </p>
           </div>
 
-          <LedgerTable entries={entries} />
+          <LedgerTable entries={entries} loading={loading} error={error} onRetry={loadEntries} />
         </main>
       </div>
     </div>

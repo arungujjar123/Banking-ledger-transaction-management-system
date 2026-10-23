@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { ArrowDownLeft, ArrowUpRight, Search, Filter } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Search } from 'lucide-react';
+import { TableContent } from '../common/States';
+import { getCreatedAt } from '../../utils/format';
 
-export const LedgerTable = ({ entries = [] }) => {
+export const LedgerTable = ({ entries = [], loading = false, error = null, onRetry }) => {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
 
@@ -92,14 +94,16 @@ export const LedgerTable = ({ entries = [] }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
-            {filteredEntries.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="py-8 text-center text-slate-500">
-                  No ledger entries found.
-                </td>
-              </tr>
-            ) : (
-              filteredEntries.map((entry) => (
+            <TableContent
+              colSpan={6}
+              loading={loading}
+              error={error}
+              onRetry={onRetry}
+              isEmpty={filteredEntries.length === 0}
+              emptyTitle={entries.length === 0 ? 'No ledger entries yet' : 'No entries match your filters'}
+              emptyDescription={entries.length === 0 ? 'Credits and debits will appear here after your first transfer.' : undefined}
+            >
+              {filteredEntries.map((entry) => (
                 <tr key={entry._id} className="hover:bg-slate-900/40 transition-colors">
                   <td className="py-3 px-4 font-mono font-medium text-slate-300">
                     {entry._id}
@@ -125,11 +129,11 @@ export const LedgerTable = ({ entries = [] }) => {
                     {entry.transaction || 'N/A'}
                   </td>
                   <td className="py-3 px-4 text-slate-400">
-                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : 'Just now'}
+                    {getCreatedAt(entry)?.toLocaleString() ?? '—'}
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
+            </TableContent>
           </tbody>
         </table>
       </div>

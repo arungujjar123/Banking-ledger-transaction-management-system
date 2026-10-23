@@ -1,7 +1,8 @@
 import React from 'react';
-import { ShieldAlert, Lock, Clock } from 'lucide-react';
+import { ShieldAlert } from 'lucide-react';
+import { TableContent } from '../common/States';
 
-export const BlockedTokensTable = ({ tokens = [] }) => {
+export const BlockedTokensTable = ({ tokens = [], loading = false, error = null, onRetry }) => {
   return (
     <div className="glass-panel rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -25,14 +26,16 @@ export const BlockedTokensTable = ({ tokens = [] }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
-            {tokens.length === 0 ? (
-              <tr>
-                <td colSpan="4" className="py-8 text-center text-slate-500">
-                  No blocked tokens found.
-                </td>
-              </tr>
-            ) : (
-              tokens.map((item) => (
+            <TableContent
+              colSpan={4}
+              loading={loading}
+              error={error}
+              onRetry={onRetry}
+              isEmpty={tokens.length === 0}
+              emptyTitle="No blocked tokens"
+              emptyDescription="Tokens are revoked here when users log out."
+            >
+              {tokens.map((item) => (
                 <tr key={item._id} className="hover:bg-slate-900/40 transition-colors">
                   <td className="py-3.5 px-4 font-mono font-medium text-slate-300">
                     {item._id}
@@ -49,8 +52,8 @@ export const BlockedTokensTable = ({ tokens = [] }) => {
                     {item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Recent'}
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
+            </TableContent>
           </tbody>
         </table>
       </div>

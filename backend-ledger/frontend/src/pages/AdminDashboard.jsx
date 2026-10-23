@@ -14,25 +14,31 @@ export const AdminDashboard = () => {
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [blockedTokens, setBlockedTokens] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [targetFundUser, setTargetFundUser] = useState(null);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const { showSuccess, showError } = useToast();
 
   const loadAdminData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const uList = await adminService.getAllUsers();
+      const [uList, lEntries, bTokens, txns] = await Promise.all([
+        adminService.getAllUsers(),
+        adminService.getAllLedgerEntries(),
+        adminService.getBlockedTokens(),
+        adminService.getAllTransactions(),
+      ]);
+
       setUsers(uList);
-
-      const lEntries = await adminService.getAllLedgerEntries();
       setLedgerEntries(lEntries);
-
-      const bTokens = await adminService.getBlockedTokens();
       setBlockedTokens(bTokens);
-
-      const txns = await adminService.getAllTransactions();
       setTransactions(txns);
     } catch (e) {
-      console.warn('Admin load error', e);
+      setError(e.message || 'Failed to load admin data');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,7 +54,7 @@ export const AdminDashboard = () => {
         prev.map((u) => (u._id === userId ? { ...u, status: newStatus } : u))
       );
     } catch (e) {
-      showError('Failed to update status');
+      showError(e.message || 'Failed to update status');
     }
   };
 
@@ -57,7 +63,11 @@ export const AdminDashboard = () => {
     setIsFundModalOpen(true);
   };
 
-  const totalVolume = ledgerEntries.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+  // Each transfer writes a DEBIT and a CREDIT entry, so summing ledger entries would
+  // count every rupee twice. Volume is the total of completed transactions instead.
+  const totalVolume = transactions
+    .filter((t) => t.status === 'COMPLETED')
+    .reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
@@ -109,12 +119,15 @@ export const AdminDashboard = () => {
           {/* User Approvals Table */}
           <UserApprovalTable
             users={users}
+            loading={loading}
+            error={error}
+            onRetry={loadAdminData}
             onUpdateStatus={handleUpdateStatus}
             onDisburseInitialFunds={handleOpenDisburseModal}
           />
 
           {/* Security & Blocked Tokens Table */}
-          <BlockedTokensTable tokens={blockedTokens} />
+          <BlockedTokensTable tokens={blockedTokens} loading={loading} error={error} onRetry={loadAdminData} />
         </main>
       </div>
 

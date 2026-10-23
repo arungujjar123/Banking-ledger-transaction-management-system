@@ -38,10 +38,20 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   return children;
 };
 
+// Sends unknown URLs to the right home page for the current role
+const HomeRedirect = () => {
+  const { user, role, loading } = useAuth();
+
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+
+  return <Navigate to={role === 'admin' ? '/admin' : '/dashboard'} replace />;
+};
+
 export function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
+    <ToastProvider>
+      <AuthProvider>
         <Router>
           <Routes>
             {/* Public Routes */}
@@ -117,11 +127,11 @@ export function App() {
             />
 
             {/* Fallback Redirect */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<HomeRedirect />} />
           </Routes>
         </Router>
-      </ToastProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

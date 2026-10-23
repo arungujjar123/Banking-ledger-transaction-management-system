@@ -6,6 +6,7 @@ import { AccountCard } from '../components/user/AccountCard';
 import { LedgerTable } from '../components/user/LedgerTable';
 import { QuickActions } from '../components/user/QuickActions';
 import { TransferModal } from '../components/user/TransferModal';
+import { ErrorState, LoadingCards } from '../components/common/States';
 import { accountService, adminService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -17,22 +18,23 @@ export const UserDashboard = () => {
   const [accounts, setAccounts] = useState([]);
   const [ledgerEntries, setLedgerEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [selectedFromAccount, setSelectedFromAccount] = useState('');
 
   const loadDashboardData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const userAccounts = await accountService.getUserAccounts();
-      setAccounts(userAccounts);
+      const [userAccounts, userLedger] = await Promise.all([
+        accountService.getUserAccounts(),
+        role === 'admin' ? adminService.getAllLedgerEntries() : accountService.getUserLedger(),
+      ]);
 
-      const userLedger = role === 'admin' 
-        ? await adminService.getAllLedgerEntries()
-        : await accountService.getUserLedger();
-        
+      setAccounts(userAccounts);
       setLedgerEntries(userLedger);
     } catch (err) {
-      console.warn('Dashboard fetch issue', err);
+      setError(err.message || 'Failed to load your dashboard');
     } finally {
       setLoading(false);
     }
@@ -57,7 +59,7 @@ export const UserDashboard = () => {
     setIsTransferOpen(true);
   };
 
-  const totalAccounts = accounts.length;
+  const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
   const creditEntries = ledgerEntries.filter((e) => e.type === 'CREDIT');
   const debitEntries = ledgerEntries.filter((e) => e.type === 'DEBIT');
 
@@ -102,8 +104,8 @@ export const UserDashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <StatCard
               title="Active Accounts"
-              value={totalAccounts.toString()}
-              subtitle="Provisioned accounts"
+              value={activeAccounts.toString()}
+              subtitle={`${accounts.length} total`}
               icon={Wallet}
             />
             <StatCard
@@ -123,10 +125,18 @@ export const UserDashboard = () => {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-white">Your Financial Accounts</h2>
-              <span className="text-xs text-slate-400">{accounts.length} active</span>
+              <span className="text-xs text-slate-400">{accounts.length} total</span>
             </div>
 
-            {accounts.length === 0 ? (
+            {loading && accounts.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <LoadingCards count={2} />
+              </div>
+            ) : error ? (
+              <div className="glass-panel rounded-2xl">
+                <ErrorState message={error} onRetry={loadDashboardData} />
+              </div>
+            ) : accounts.length === 0 ? (
               <div className="glass-panel rounded-2xl p-8 text-center">
                 <p className="text-slate-400 text-sm mb-3">No accounts provisioned yet.</p>
                 <button
@@ -157,7 +167,7 @@ export const UserDashboard = () => {
               />
             </div>
             <div className="lg:col-span-2">
-              <LedgerTable entries={ledgerEntries} />
+              <LedgerTable entries={ledgerEntries} loading={loading} error={error} onRetry={loadDashboardData} />
             </div>
           </div>
         </main>
