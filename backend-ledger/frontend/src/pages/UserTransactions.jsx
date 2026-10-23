@@ -19,7 +19,11 @@ export const UserTransactions = () => {
         title="Transactions"
         description="The full debit and credit history of your accounts."
         actions={
-          <Button icon={Send} onClick={() => setIsTransferOpen(true)} disabled={userAccounts.length === 0}>
+          <Button
+            icon={Send}
+            onClick={() => setIsTransferOpen(true)}
+            disabled={!userAccounts.some((a) => a.status === 'ACTIVE')}
+          >
             Transfer funds
           </Button>
         }

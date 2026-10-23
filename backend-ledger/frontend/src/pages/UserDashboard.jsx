@@ -4,11 +4,12 @@ import { StatCard } from '../components/common/StatCard';
 import { AccountCard } from '../components/user/AccountCard';
 import { LedgerTable } from '../components/user/LedgerTable';
 import { TransferModal } from '../components/user/TransferModal';
+import { AccountStatusBanner } from '../components/user/AccountStatusBanner';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { EmptyState, ErrorState, LoadingCards } from '../components/ui/States';
-import { useAccounts, useCreateAccount, useLedger } from '../hooks/queries';
+import { useAccounts, useCreateAccount, useLedger, useTotalBalance } from '../hooks/queries';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -28,6 +29,7 @@ export const UserDashboard = () => {
 
   const accounts = accountsQuery.data ?? [];
   const ledgerEntries = ledgerQuery.data ?? [];
+  const totalBalance = useTotalBalance(accounts.map((a) => a._id));
 
   const handleCreateAccount = async () => {
     try {
@@ -44,6 +46,7 @@ export const UserDashboard = () => {
   };
 
   const activeAccounts = accounts.filter((a) => a.status === 'ACTIVE').length;
+  const canTransfer = activeAccounts > 0;
   const totalCredits = ledgerEntries.filter((e) => e.type === 'CREDIT').reduce((sum, e) => sum + (e.amount || 0), 0);
   const totalDebits = ledgerEntries.filter((e) => e.type === 'DEBIT').reduce((sum, e) => sum + (e.amount || 0), 0);
 
@@ -57,15 +60,27 @@ export const UserDashboard = () => {
             <Button variant="secondary" icon={Plus} onClick={handleCreateAccount} loading={createAccount.isPending}>
               New account
             </Button>
-            <Button icon={Send} onClick={() => handleOpenTransfer()} disabled={accounts.length === 0}>
+            <Button
+              icon={Send}
+              onClick={() => handleOpenTransfer()}
+              disabled={!canTransfer}
+              title={canTransfer ? undefined : 'Available once an account is approved'}
+            >
               Transfer funds
             </Button>
           </>
         }
       />
 
+      <AccountStatusBanner accounts={accounts} />
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title="Active accounts" value={activeAccounts.toString()} subtitle={`${accounts.length} total`} icon={Wallet} />
+        <StatCard
+          title="Total balance"
+          value={accountsQuery.isLoading || totalBalance.isLoading ? '…' : formatCurrency(totalBalance.total)}
+          subtitle={`${activeAccounts} of ${accounts.length} ${accounts.length === 1 ? 'account' : 'accounts'} active`}
+          icon={Wallet}
+        />
         <StatCard title="Total credits" value={formatCurrency(totalCredits)} subtitle="Money received" icon={ArrowDownLeft} tone="credit" />
         <StatCard title="Total debits" value={formatCurrency(totalDebits)} subtitle="Money sent" icon={ArrowUpRight} tone="debit" />
       </div>

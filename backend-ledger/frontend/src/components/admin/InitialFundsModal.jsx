@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Send, RefreshCw } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
@@ -17,6 +17,8 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
 
   const targetAccounts = targetUser?.accounts ?? [];
 
+  // A new key each time the modal opens; retries inside one session reuse it, so a
+  // timed-out request cannot fund the account twice
   useEffect(() => {
     if (isOpen) {
       setIdempotencyKey(generateIdempotencyKey());
@@ -82,20 +84,6 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
           className="tabular-nums"
           required
         />
-
-        <div className="rounded-control border border-border bg-surface-2 p-3">
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <span className="font-semibold text-muted">Idempotency key</span>
-            <button
-              type="button"
-              onClick={() => setIdempotencyKey(generateIdempotencyKey())}
-              className="flex items-center gap-1 text-muted hover:text-fg transition-colors"
-            >
-              <RefreshCw className="w-3 h-3" /> New key
-            </button>
-          </div>
-          <p className="font-mono text-xs text-subtle truncate mt-1">{idempotencyKey}</p>
-        </div>
 
         <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button variant="ghost" onClick={onClose}>
