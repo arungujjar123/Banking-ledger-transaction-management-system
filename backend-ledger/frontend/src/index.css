@@ -2,45 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme tokens as space-separated RGB channels, consumed by tailwind.config.js.
+   Text tokens are chosen to keep at least 4.5:1 contrast on their surfaces. */
 @layer base {
-  body {
-    @apply bg-slate-950 text-slate-100 min-h-screen font-sans;
+  :root {
+    --bg: 246 247 249;
+    --surface: 255 255 255;
+    --surface-2: 249 250 251;
+    --border: 228 231 236;
+    --border-strong: 208 213 221;
+    --fg: 16 24 40;
+    --muted: 71 84 103;
+    --subtle: 102 112 133;
+    --accent: 4 120 87;
+    --accent-hover: 6 95 70;
+    --accent-soft: 236 253 245;
+    --accent-fg: 6 95 70;
+    --on-accent: 255 255 255;
+    --debit: 180 35 24;
+    --debit-soft: 254 243 242;
+    --warn: 181 71 8;
+    --warn-soft: 255 250 235;
+    --info: 23 92 211;
+    --info-soft: 239 248 255;
+    color-scheme: light;
   }
-}
 
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+  .dark {
+    --bg: 11 15 23;
+    --surface: 18 24 38;
+    --surface-2: 15 21 32;
+    --border: 31 41 55;
+    --border-strong: 42 53 70;
+    --fg: 242 244 247;
+    --muted: 163 173 189;
+    --subtle: 139 150 168;
+    --accent: 52 211 153;
+    --accent-hover: 110 231 183;
+    --accent-soft: 15 42 34;
+    --accent-fg: 110 231 183;
+    --on-accent: 5 46 31;
+    --debit: 249 112 102;
+    --debit-soft: 42 18 21;
+    --warn: 253 176 34;
+    --warn-soft: 42 31 10;
+    --info: 83 177 253;
+    --info-soft: 16 33 56;
+    color-scheme: dark;
+  }
 
-::-webkit-scrollbar-track {
-  background: #090d16;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #059669;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
-}
-
-/* Custom Glassmorphism */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(16, 185, 129, 0.15);
-}
-
-.glass-panel-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-panel-hover:hover {
-  border-color: rgba(16, 185, 129, 0.35);
-  box-shadow: 0 10px 30px -10px rgba(16, 185, 129, 0.25);
-  transform: translateY(-2px);
+  body {
+    @apply bg-bg text-fg font-sans text-sm antialiased min-h-screen;
+  }
 }

@@ -10,7 +10,7 @@ export const ProtectedRoute = ({ requiredRole }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-400 font-bold text-sm">
+      <div className="min-h-screen flex items-center justify-center text-muted font-medium">
         Loading LedgerX...
       </div>
     );

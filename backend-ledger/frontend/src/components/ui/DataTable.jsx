@@ -4,8 +4,9 @@ import { cn } from '../../utils/cn';
 
 /**
  * Generic table driven by a column config:
- *   { key, header, render?: (row) => node, className?, headerClassName? }
+ *   { key, header, render?: (row) => node, align?: 'right', className? }
  * Loading, error and empty states are handled here so every table behaves the same.
+ * Meant to sit edge to edge inside a Card with `p-0`.
  */
 export const DataTable = ({
   columns,
@@ -16,19 +17,20 @@ export const DataTable = ({
   onRetry,
   emptyTitle,
   emptyDescription,
+  minWidth = 640,
 }) => (
   <div className="overflow-x-auto">
-    <table className="w-full text-left text-xs">
-      <thead className="bg-slate-900/60 text-slate-400 border-b border-slate-800 uppercase font-semibold text-[10px] tracking-wider">
-        <tr>
+    <table className="w-full border-collapse text-sm" style={{ minWidth }}>
+      <thead>
+        <tr className="text-left text-xs text-subtle">
           {columns.map((col) => (
-            <th key={col.key} className={cn('py-3 px-4', col.headerClassName)}>
+            <th key={col.key} className={cn('px-5 py-3 font-semibold whitespace-nowrap', col.align === 'right' && 'text-right')}>
               {col.header}
             </th>
           ))}
         </tr>
       </thead>
-      <tbody className="divide-y divide-slate-800/50">
+      <tbody>
         <TableContent
           colSpan={columns.length}
           loading={loading}
@@ -39,9 +41,9 @@ export const DataTable = ({
           emptyDescription={emptyDescription}
         >
           {rows.map((row) => (
-            <tr key={row[rowKey]} className="hover:bg-slate-900/40 transition-colors">
+            <tr key={row[rowKey]} className="border-t border-border hover:bg-surface-2 transition-colors">
               {columns.map((col) => (
-                <td key={col.key} className={cn('py-3.5 px-4', col.className)}>
+                <td key={col.key} className={cn('px-5 py-3.5', col.align === 'right' && 'text-right', col.className)}>
                   {col.render ? col.render(row) : row[col.key]}
                 </td>
               ))}

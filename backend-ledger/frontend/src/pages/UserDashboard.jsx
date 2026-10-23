@@ -1,25 +1,23 @@
 import React, { useState } from 'react';
-import { useIsFetching, useQueryClient } from '@tanstack/react-query';
+import { Wallet, ArrowDownLeft, ArrowUpRight, Plus, Send } from 'lucide-react';
 import { StatCard } from '../components/common/StatCard';
 import { AccountCard } from '../components/user/AccountCard';
 import { LedgerTable } from '../components/user/LedgerTable';
-import { QuickActions } from '../components/user/QuickActions';
 import { TransferModal } from '../components/user/TransferModal';
 import { PageHeader } from '../components/ui/PageHeader';
-import { Button, IconButton } from '../components/ui/Button';
+import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { ErrorState, LoadingCards } from '../components/ui/States';
+import { EmptyState, ErrorState, LoadingCards } from '../components/ui/States';
 import { useAccounts, useCreateAccount, useLedger } from '../hooks/queries';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { formatCurrency } from '../utils/format';
-import { Wallet, ArrowDownLeft, ArrowUpRight, Plus, RefreshCw } from 'lucide-react';
 
 export const UserDashboard = () => {
+  useDocumentTitle('Overview');
   const { user, role } = useAuth();
   const { showSuccess, showError } = useToast();
-  const queryClient = useQueryClient();
-  const isFetching = useIsFetching() > 0;
 
   const accountsQuery = useAccounts();
   const ledgerQuery = useLedger(role === 'admin' ? 'all' : 'mine');
@@ -34,7 +32,7 @@ export const UserDashboard = () => {
   const handleCreateAccount = async () => {
     try {
       await createAccount.mutateAsync();
-      showSuccess('New account provisioned successfully!');
+      showSuccess('New account created');
     } catch (err) {
       showError(err.message || 'Failed to create account');
     }
@@ -52,32 +50,31 @@ export const UserDashboard = () => {
   return (
     <>
       <PageHeader
-        title={<>Welcome back, <span className="text-emerald-400">{user?.name || 'User'}</span></>}
-        description="Here is your live double-entry financial ledger overview."
+        title={`Welcome back, ${user?.name || 'there'}`}
+        description="Here is an overview of your accounts and recent ledger activity."
         actions={
           <>
-            <IconButton icon={RefreshCw} label="Refresh data" spinning={isFetching} onClick={() => queryClient.invalidateQueries()} />
-            <Button variant="secondary" icon={Plus} onClick={handleCreateAccount} className="font-bold shadow-glow-emerald">
-              New Account
+            <Button variant="secondary" icon={Plus} onClick={handleCreateAccount} loading={createAccount.isPending}>
+              New account
+            </Button>
+            <Button icon={Send} onClick={() => handleOpenTransfer()} disabled={accounts.length === 0}>
+              Transfer funds
             </Button>
           </>
         }
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title="Active Accounts" value={activeAccounts.toString()} subtitle={`${accounts.length} total`} icon={Wallet} />
-        <StatCard title="Total Ledger Credits" value={formatCurrency(totalCredits)} subtitle="Incoming credit volume" icon={ArrowDownLeft} />
-        <StatCard title="Total Ledger Debits" value={formatCurrency(totalDebits)} subtitle="Outgoing debit volume" icon={ArrowUpRight} />
+        <StatCard title="Active accounts" value={activeAccounts.toString()} subtitle={`${accounts.length} total`} icon={Wallet} />
+        <StatCard title="Total credits" value={formatCurrency(totalCredits)} subtitle="Money received" icon={ArrowDownLeft} tone="credit" />
+        <StatCard title="Total debits" value={formatCurrency(totalDebits)} subtitle="Money sent" icon={ArrowUpRight} tone="debit" />
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">Your Financial Accounts</h2>
-          <span className="text-xs text-slate-400">{accounts.length} total</span>
-        </div>
+      <section aria-labelledby="accounts-heading" className="space-y-3">
+        <h2 id="accounts-heading" className="text-[17px] font-semibold text-fg">Your accounts</h2>
 
         {accountsQuery.isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <LoadingCards count={2} />
           </div>
         ) : accountsQuery.error ? (
@@ -85,34 +82,28 @@ export const UserDashboard = () => {
             <ErrorState message={accountsQuery.error.message} onRetry={() => accountsQuery.refetch()} />
           </Card>
         ) : accounts.length === 0 ? (
-          <Card className="p-8 text-center">
-            <p className="text-slate-400 text-sm mb-3">No accounts provisioned yet.</p>
-            <Button variant="solid" onClick={handleCreateAccount}>
-              Create First Account
-            </Button>
+          <Card className="p-0">
+            <EmptyState
+              title="No accounts yet"
+              description="Create your first account to start receiving and sending funds."
+              action={<Button onClick={handleCreateAccount}>Create first account</Button>}
+            />
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {accounts.map((acc) => (
               <AccountCard key={acc._id} account={acc} onSelectForTransfer={handleOpenTransfer} />
             ))}
           </div>
         )}
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <QuickActions onCreateAccount={handleCreateAccount} onOpenTransfer={() => handleOpenTransfer()} />
-        </div>
-        <div className="lg:col-span-2">
-          <LedgerTable
-            entries={ledgerEntries}
-            loading={ledgerQuery.isLoading}
-            error={ledgerQuery.error?.message}
-            onRetry={() => ledgerQuery.refetch()}
-          />
-        </div>
-      </div>
+      <LedgerTable
+        entries={ledgerEntries}
+        loading={ledgerQuery.isLoading}
+        error={ledgerQuery.error?.message}
+        onRetry={() => ledgerQuery.refetch()}
+      />
 
       <TransferModal
         isOpen={isTransferOpen}
