@@ -1,3 +1,4 @@
+const path = require("path")
 const express = require("express")
 const cookieParser = require("cookie-parser")
 
@@ -18,7 +19,7 @@ const adminRouter = require("./routes/admin.routes")
  * - Use Routes
  */
 
-app.get("/", (req, res) => {
+app.get("/health", (req, res) => {
     res.send("Ledger Service is up and running")
 })
 
@@ -26,5 +27,14 @@ app.use("/api/auth", authRouter)
 app.use("/api/accounts", accountRouter)
 app.use("/api/transactions", transactionRoutes)
 app.use("/api/admin", adminRouter)
+
+/**
+ * - Serve frontend build (production)
+ */
+const frontendDist = path.join(__dirname, "../../frontend/dist")
+app.use(express.static(frontendDist))
+app.get(/^(?!\/api).*/, (req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"))
+})
 
 module.exports = app
