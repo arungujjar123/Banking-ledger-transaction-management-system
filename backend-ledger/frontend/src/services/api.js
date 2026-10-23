@@ -16,6 +16,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let unauthorizedHandler = null;
+
+export const setUnauthorizedHandler = (handler) => {
+  unauthorizedHandler = handler;
+};
+
+// A 401 from any protected API means the session expired or was revoked.
+// Auth routes are excluded: a 401 there is a wrong password, not an expired session.
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    const isAuthRoute = err.config?.url?.startsWith('/auth/');
+
+    if (err.response?.status === 401 && !isAuthRoute && unauthorizedHandler) {
+      unauthorizedHandler();
+    }
+
+    return Promise.reject(err);
+  }
+);
+
 export const generateIdempotencyKey = () => {
   return 'ik_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) + '_' + Date.now();
 };
@@ -42,6 +63,27 @@ export const authService = {
       return res.data;
     } catch (err) {
       throw err.response?.data || { message: 'Registration failed' };
+    }
+  },
+
+  demoLogin: async () => {
+    try {
+      const res = await api.post('/auth/demo-login');
+      if (res.data.token) {
+        localStorage.setItem('token', res.data.token);
+      }
+      return res.data;
+    } catch (err) {
+      throw err.response?.data || { message: 'Demo login failed' };
+    }
+  },
+
+  me: async () => {
+    try {
+      const res = await api.get('/auth/me');
+      return res.data.user;
+    } catch (err) {
+      throw { status: err.response?.status, ...(err.response?.data || { message: 'Session check failed' }) };
     }
   },
 

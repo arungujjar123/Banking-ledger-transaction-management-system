@@ -9,16 +9,22 @@ import { Users } from 'lucide-react';
 
 export const AdminUsers = () => {
   const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [targetUser, setTargetUser] = useState(null);
   const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const { showSuccess, showError } = useToast();
 
   const loadUsers = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const data = await adminService.getAllUsers();
       setUsers(data);
     } catch (e) {
-      showError('Failed to load users');
+      setError(e.message || 'Failed to load users');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -34,7 +40,7 @@ export const AdminUsers = () => {
         prev.map((u) => (u._id === userId ? { ...u, status: newStatus } : u))
       );
     } catch (e) {
-      showError('Failed to update status');
+      showError(e.message || 'Failed to update status');
     }
   };
 
@@ -61,6 +67,9 @@ export const AdminUsers = () => {
 
           <UserApprovalTable
             users={users}
+            loading={loading}
+            error={error}
+            onRetry={loadUsers}
             onUpdateStatus={handleUpdateStatus}
             onDisburseInitialFunds={handleOpenFundModal}
           />

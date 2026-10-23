@@ -30,6 +30,8 @@ const ledgerSchema = new mongoose.Schema({
         required: [ true, "Ledger type is required" ],
         immutable: true
     }
+}, {
+    timestamps: true
 })
 
 

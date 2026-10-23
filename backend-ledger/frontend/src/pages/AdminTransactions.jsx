@@ -2,15 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '../components/common/Navbar';
 import { Sidebar } from '../components/common/Sidebar';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { TableContent } from '../components/common/States';
 import { adminService } from '../services/api';
 import { Receipt, Search } from 'lucide-react';
 
 export const AdminTransactions = () => {
   const [transactions, setTransactions] = useState([]);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const loadTransactions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setTransactions(await adminService.getAllTransactions());
+    } catch (e) {
+      setError(e.message || 'Failed to load transactions');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    adminService.getAllTransactions().then((data) => setTransactions(data));
+    loadTransactions();
   }, []);
 
   const filtered = transactions.filter(
@@ -64,24 +79,33 @@ export const AdminTransactions = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
-                  {filtered.map((t) => (
-                    <tr key={t._id} className="hover:bg-slate-900/40 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-semibold text-slate-200">
-                        {t._id}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-slate-400">{t.fromAccount}</td>
-                      <td className="py-3.5 px-4 font-mono text-slate-400">{t.toAccount}</td>
-                      <td className="py-3.5 px-4 font-extrabold text-white text-sm">
-                        ₹{(t.amount || 0).toLocaleString('en-IN')}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <StatusBadge status={t.status} />
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-400 truncate max-w-xs">
-                        {t.idempotencyKey}
-                      </td>
-                    </tr>
-                  ))}
+                  <TableContent
+                    colSpan={6}
+                    loading={loading}
+                    error={error}
+                    onRetry={loadTransactions}
+                    isEmpty={filtered.length === 0}
+                    emptyTitle={transactions.length === 0 ? 'No transactions yet' : 'No transactions match your search'}
+                  >
+                    {filtered.map((t) => (
+                      <tr key={t._id} className="hover:bg-slate-900/40 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-semibold text-slate-200">
+                          {t._id}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-400">{t.fromAccount}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-400">{t.toAccount}</td>
+                        <td className="py-3.5 px-4 font-extrabold text-white text-sm">
+                          ₹{(t.amount || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusBadge status={t.status} />
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-400 truncate max-w-xs">
+                          {t.idempotencyKey}
+                        </td>
+                      </tr>
+                    ))}
+                  </TableContent>
                 </tbody>
               </table>
             </div>

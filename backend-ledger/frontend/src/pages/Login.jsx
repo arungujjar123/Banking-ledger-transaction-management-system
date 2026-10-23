@@ -2,16 +2,16 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Building2, ShieldCheck, ArrowRight, Lock, Mail, Sparkles } from 'lucide-react';
+import { Building2, ArrowRight, Lock, Mail, PlayCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [roleSelection, setRoleSelection] = useState('user'); // 'user' | 'admin'
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, demoLogin } = useAuth();
   const { showSuccess, showError } = useToast();
   const navigate = useNavigate();
 
@@ -24,9 +24,9 @@ export const Login = () => {
 
     setLoading(true);
     try {
-      await login(email, password, roleSelection);
-      showSuccess(`Welcome back! Logged in as ${roleSelection === 'admin' ? 'Administrator' : 'User'}`);
-      navigate(roleSelection === 'admin' ? '/admin' : '/dashboard');
+      const data = await login(email, password);
+      showSuccess(`Welcome back, ${data.user.name}!`);
+      navigate(data.user.systemUser ? '/admin' : '/dashboard');
     } catch (err) {
       showError(err.message || 'Invalid credentials');
     } finally {
@@ -34,14 +34,16 @@ export const Login = () => {
     }
   };
 
-  const setDemoCredentials = (role) => {
-    setRoleSelection(role);
-    if (role === 'admin') {
-      setEmail('system@ledger.internal');
-      setPassword('admin123');
-    } else {
-      setEmail('user@example.com');
-      setPassword('user1234');
+  const handleDemoLogin = async () => {
+    setDemoLoading(true);
+    try {
+      await demoLogin();
+      showSuccess('Welcome! You are exploring the demo account.');
+      navigate('/dashboard');
+    } catch (err) {
+      showError(err.message || 'Demo account is not available right now');
+    } finally {
+      setDemoLoading(false);
     }
   };
 
@@ -67,32 +69,6 @@ export const Login = () => {
           <p className="text-xs text-slate-400 mt-1">
             Immutable Double-Entry Accounting Platform
           </p>
-        </div>
-
-        {/* Role Selector Tabs */}
-        <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-900/90 border border-slate-800 mb-6">
-          <button
-            type="button"
-            onClick={() => setRoleSelection('user')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
-              roleSelection === 'user'
-                ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            User Account
-          </button>
-          <button
-            type="button"
-            onClick={() => setRoleSelection('admin')}
-            className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-              roleSelection === 'admin'
-                ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-glow-emerald'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Admin Portal
-          </button>
         </div>
 
         {/* Form */}
@@ -137,23 +113,20 @@ export const Login = () => {
           </button>
         </form>
 
-        {/* Demo Login Quick Fills */}
+        {/* One-click demo login */}
         <div className="mt-6 pt-5 border-t border-slate-800 text-center">
-          <p className="text-[11px] font-semibold text-slate-400 mb-2">Quick Demo Fills:</p>
-          <div className="flex justify-center gap-2 text-xs">
-            <button
-              onClick={() => setDemoCredentials('user')}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/20 text-[11px]"
-            >
-              Fill User Demo
-            </button>
-            <button
-              onClick={() => setDemoCredentials('admin')}
-              className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-teal-400 border border-teal-500/20 text-[11px]"
-            >
-              Fill Admin Demo
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            disabled={demoLoading}
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/30 text-emerald-300 font-bold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <PlayCircle className="w-4 h-4" />
+            {demoLoading ? 'Opening demo...' : 'Explore with Demo Account'}
+          </button>
+          <p className="text-xs text-slate-500 mt-2">
+            Pre-funded account with sample transactions. No sign-up needed.
+          </p>
         </div>
 
         {/* Register Link */}

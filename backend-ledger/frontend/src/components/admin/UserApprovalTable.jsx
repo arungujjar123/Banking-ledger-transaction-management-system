@@ -1,8 +1,9 @@
 import React from 'react';
 import { StatusBadge } from '../common/StatusBadge';
+import { TableContent } from '../common/States';
 import { CheckCircle2, AlertOctagon, DollarSign, Shield } from 'lucide-react';
 
-export const UserApprovalTable = ({ users = [], onUpdateStatus, onDisburseInitialFunds }) => {
+export const UserApprovalTable = ({ users = [], loading = false, error = null, onRetry, onUpdateStatus, onDisburseInitialFunds }) => {
   return (
     <div className="glass-panel rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
@@ -24,14 +25,15 @@ export const UserApprovalTable = ({ users = [], onUpdateStatus, onDisburseInitia
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/50">
-            {users.length === 0 ? (
-              <tr>
-                <td colSpan="5" className="py-8 text-center text-slate-500">
-                  No registered users found in database.
-                </td>
-              </tr>
-            ) : (
-              users.map((u) => (
+            <TableContent
+              colSpan={5}
+              loading={loading}
+              error={error}
+              onRetry={onRetry}
+              isEmpty={users.length === 0}
+              emptyTitle="No registered users yet"
+            >
+              {users.map((u) => (
                 <tr key={u._id} className="hover:bg-slate-900/40 transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="font-semibold text-slate-200">{u.name}</div>
@@ -86,8 +88,8 @@ export const UserApprovalTable = ({ users = [], onUpdateStatus, onDisburseInitia
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
+            </TableContent>
           </tbody>
         </table>
       </div>

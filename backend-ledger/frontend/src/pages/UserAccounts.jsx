@@ -3,6 +3,7 @@ import { Navbar } from '../components/common/Navbar';
 import { Sidebar } from '../components/common/Sidebar';
 import { AccountCard } from '../components/user/AccountCard';
 import { TransferModal } from '../components/user/TransferModal';
+import { EmptyState, ErrorState, LoadingCards } from '../components/common/States';
 import { accountService } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { CreditCard, Plus, RefreshCw } from 'lucide-react';
@@ -10,17 +11,19 @@ import { CreditCard, Plus, RefreshCw } from 'lucide-react';
 export const UserAccounts = () => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [selectedFromAccount, setSelectedFromAccount] = useState('');
   const { showSuccess, showError } = useToast();
 
   const fetchAccounts = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await accountService.getUserAccounts();
       setAccounts(data);
     } catch (e) {
-      showError('Failed to fetch accounts');
+      setError(e.message || 'Failed to fetch accounts');
     } finally {
       setLoading(false);
     }
@@ -79,15 +82,32 @@ export const UserAccounts = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {accounts.map((acc) => (
-              <AccountCard
-                key={acc._id}
-                account={acc}
-                onSelectForTransfer={handleOpenTransfer}
+          {error ? (
+            <div className="glass-panel rounded-2xl">
+              <ErrorState message={error} onRetry={fetchAccounts} />
+            </div>
+          ) : !loading && accounts.length === 0 ? (
+            <div className="glass-panel rounded-2xl">
+              <EmptyState
+                title="No accounts yet"
+                description="Create your first account to start receiving and sending funds."
               />
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {loading && accounts.length === 0 ? (
+                <LoadingCards count={3} />
+              ) : (
+                accounts.map((acc) => (
+                  <AccountCard
+                    key={acc._id}
+                    account={acc}
+                    onSelectForTransfer={handleOpenTransfer}
+                  />
+                ))
+              )}
+            </div>
+          )}
         </main>
       </div>
 

@@ -5,6 +5,25 @@ const emailService = require("../services/email.service")
 const tokenBlackListModel = require("../models/blackList.model")
 
 /**
+ * - Issue a JWT for the user and send it as cookie + response body
+ */
+function sendAuthResponse(res, user, statusCode) {
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "3d" })
+
+    res.cookie("token", token)
+
+    return res.status(statusCode).json({
+        user: {
+            _id: user._id,
+            email: user.email,
+            name: user.name,
+            systemUser: user.systemUser || false
+        },
+        token
+    })
+}
+
+/**
 * - user register controller
 * - POST /api/auth/register
 */
@@ -32,19 +51,7 @@ async function userRegisterController(req, res) {
         status: "PENDING"
     })
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "3d" })
-
-    res.cookie("token", token)
-
-    res.status(201).json({
-        user: {
-            _id: user._id,
-            email: user.email,
-            name: user.name,
-            systemUser: user.systemUser || false
-        },
-        token
-    })
+    sendAuthResponse(res, user, 201)
 
     await emailService.sendRegistrationEmail(user.email, user.name)
 }
@@ -73,18 +80,43 @@ async function userLoginController(req, res) {
         })
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "3d" })
+    return sendAuthResponse(res, user, 200)
+}
 
-    res.cookie("token", token)
+/**
+ * - Demo Login Controller
+ * - POST /api/auth/demo-login
+ * - Logs in as the seeded demo user, so the demo password never reaches the client
+ */
+async function demoLoginController(req, res) {
+    const demoEmail = process.env.DEMO_EMAIL
 
-    res.status(200).json({
+    const user = demoEmail && await userModel.findOne({ email: demoEmail }).select("+systemUser")
+
+    // Never hand out an admin session, even if DEMO_EMAIL is misconfigured
+    if (!user || user.systemUser) {
+        return res.status(404).json({
+            message: "Demo account is not available"
+        })
+    }
+
+    return sendAuthResponse(res, user, 200)
+}
+
+/**
+ * - Current User Controller
+ * - GET /api/auth/me
+ */
+async function getCurrentUserController(req, res) {
+    const user = await userModel.findById(req.user._id).select("+systemUser")
+
+    return res.status(200).json({
         user: {
             _id: user._id,
             email: user.email,
             name: user.name,
             systemUser: user.systemUser || false
-        },
-        token
+        }
     })
 }
 
@@ -115,5 +147,7 @@ async function userLogoutController(req, res) {
 module.exports = {
     userRegisterController,
     userLoginController,
-    userLogoutController
+    userLogoutController,
+    demoLoginController,
+    getCurrentUserController
 }
