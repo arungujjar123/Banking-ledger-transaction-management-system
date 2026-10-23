@@ -46,8 +46,17 @@ export const AccountCard = ({ account, onSelectForTransfer }) => {
       </div>
 
       {onSelectForTransfer && (
-        <Button variant="secondary" fullWidth onClick={() => onSelectForTransfer(account._id)}>
-          Transfer from this account
+        <Button
+          variant="secondary"
+          fullWidth
+          onClick={() => onSelectForTransfer(account._id)}
+          disabled={account.status !== 'ACTIVE'}
+        >
+          {account.status === 'ACTIVE'
+            ? 'Transfer from this account'
+            : account.status === 'PENDING'
+              ? 'Waiting for approval'
+              : 'Transfers paused'}
         </Button>
       )}
     </Card>

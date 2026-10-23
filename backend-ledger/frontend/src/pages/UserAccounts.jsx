@@ -3,6 +3,7 @@ import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw } from 'lucide-react';
 import { AccountCard } from '../components/user/AccountCard';
 import { TransferModal } from '../components/user/TransferModal';
+import { AccountStatusBanner } from '../components/user/AccountStatusBanner';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button, IconButton } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -49,6 +50,8 @@ export const UserAccounts = () => {
           </>
         }
       />
+
+      <AccountStatusBanner accounts={accounts} />
 
       {error ? (
         <Card className="p-0">

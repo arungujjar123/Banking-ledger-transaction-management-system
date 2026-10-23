@@ -81,6 +81,9 @@ export const accountService = {
   getAccountBalance: (accountId) => api.get(`/accounts/balance/${accountId}`).then((res) => res.data),
 
   getUserLedger: () => api.get('/accounts/ledger').then((res) => res.data.entries || []),
+
+  // Masked owner name + status for confirming a transfer recipient
+  lookupAccount: (accountId) => api.get(`/accounts/lookup/${accountId}`).then((res) => res.data),
 };
 
 export const transactionService = {

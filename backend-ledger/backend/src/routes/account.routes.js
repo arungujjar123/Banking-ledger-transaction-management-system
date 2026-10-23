@@ -30,4 +30,10 @@ router.get("/ledger", authMiddleware.authMiddleware, accountController.getUserLe
  */
 router.get("/balance/:accountId", authMiddleware.authMiddleware, accountController.getAccountBalanceController)
 
+/**
+ * - GET /api/accounts/lookup/:accountId
+ * - Masked owner name + status, used to confirm a transfer recipient
+ */
+router.get("/lookup/:accountId", authMiddleware.authMiddleware, accountController.lookupAccountController)
+
 module.exports = router

@@ -19,6 +19,24 @@ const TypeIcon = ({ type, className }) =>
     ? <ArrowDownLeft className={className} strokeWidth={2.5} aria-hidden="true" />
     : <ArrowUpRight className={className} strokeWidth={2.5} aria-hidden="true" />;
 
+// User ledger entries carry the other side of the transfer; admin entries only have the transaction
+const describeEntry = (e) => {
+  if (e.counterpartyAccount) {
+    return { label: e.type === 'CREDIT' ? 'Received from' : 'Sent to', id: e.counterpartyAccount };
+  }
+  return { label: 'Transaction', id: e.transaction };
+};
+
+const EntryDetails = ({ entry }) => {
+  const { label, id } = describeEntry(entry);
+  return (
+    <span className="whitespace-nowrap">
+      <span className="text-muted">{label}</span>{' '}
+      <span className="font-mono text-[13px] text-fg" title={id}>{shortId(id)}</span>
+    </span>
+  );
+};
+
 const SignedAmount = ({ entry }) => (
   <span className={cn('font-semibold tabular-nums whitespace-nowrap', entry.type === 'CREDIT' ? 'text-accent' : 'text-fg')}>
     {entry.type === 'CREDIT' ? '+ ' : '− '}
@@ -43,12 +61,7 @@ const columns = [
     className: 'font-mono text-[13px] text-muted',
     render: (e) => <span title={e.account}>{shortId(e.account)}</span>,
   },
-  {
-    key: 'transaction',
-    header: 'Transaction',
-    className: 'font-mono text-[13px] text-muted',
-    render: (e) => <span title={e.transaction}>{shortId(e.transaction)}</span>,
-  },
+  { key: 'details', header: 'Details', render: (e) => <EntryDetails entry={e} /> },
   {
     key: 'amount',
     header: 'Amount',
@@ -88,10 +101,12 @@ const MobileEntryList = ({ entries, loading, error, onRetry, emptyTitle, emptyDe
             <TypeIcon type={e.type} className="w-4 h-4" />
           </span>
           <div className="flex-1 min-w-0">
-            <div className="font-semibold text-fg">
-              {e.type === 'CREDIT' ? 'Credit' : 'Debit'} · <span className="font-mono text-[13px] font-medium">{shortId(e.account)}</span>
+            <div className="font-semibold text-fg truncate">
+              {describeEntry(e).label} <span className="font-mono text-[13px] font-medium">{shortId(describeEntry(e).id)}</span>
             </div>
-            <div className="text-xs text-subtle mt-0.5">{formatDateTime(getCreatedAt(e))}</div>
+            <div className="text-xs text-subtle mt-0.5">
+              {formatDateTime(getCreatedAt(e))} · <span className="font-mono">{shortId(e.account)}</span>
+            </div>
           </div>
           <SignedAmount entry={e} />
         </li>
@@ -113,7 +128,7 @@ export const LedgerTable = ({
 
   const query = search.toLowerCase();
   const filteredEntries = entries.filter((item) => {
-    const matchesSearch = [item.account, item.transaction, item._id].some((value) =>
+    const matchesSearch = [item.account, item.transaction, item.counterpartyAccount, item._id].some((value) =>
       (value || '').toLowerCase().includes(query)
     );
 

@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { accountService, adminService, transactionService } from '../services/api';
 
 export const queryKeys = {
   accounts: ['accounts'],
   ledger: ['ledger'],
   balance: (accountId) => ['balance', accountId],
+  lookup: (accountId) => ['lookup', accountId],
   admin: {
     all: ['admin'],
     users: ['admin', 'users'],
@@ -27,10 +28,32 @@ export const useLedger = (scope = 'mine') =>
       : { queryKey: queryKeys.ledger, queryFn: accountService.getUserLedger }
   );
 
+const balanceQuery = (accountId) => ({
+  queryKey: queryKeys.balance(accountId),
+  queryFn: () => accountService.getAccountBalance(accountId).then((data) => data.balance),
+});
+
 export const useAccountBalance = (accountId) =>
+  useQuery({ ...balanceQuery(accountId), enabled: Boolean(accountId) });
+
+// Sum of several balances; shares the cache with each account card's own balance query
+export const useTotalBalance = (accountIds) =>
+  useQueries({
+    queries: accountIds.map(balanceQuery),
+    combine: (results) => ({
+      total: results.reduce((sum, r) => sum + (r.data || 0), 0),
+      isLoading: results.some((r) => r.isLoading),
+    }),
+  });
+
+// Only runs for a well-formed ID; a 404 here is an answer ("no such account"), not a failure to retry
+export const useAccountLookup = (accountId) =>
   useQuery({
-    queryKey: queryKeys.balance(accountId),
-    queryFn: () => accountService.getAccountBalance(accountId).then((data) => data.balance),
+    queryKey: queryKeys.lookup(accountId),
+    queryFn: () => accountService.lookupAccount(accountId),
+    enabled: /^[a-f\d]{24}$/i.test(accountId || ''),
+    retry: false,
+    staleTime: 60 * 1000,
   });
 
 export const useCreateAccount = () => {
