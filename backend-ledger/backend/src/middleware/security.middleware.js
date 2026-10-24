@@ -6,19 +6,23 @@ const { rateLimit } = require("express-rate-limit")
  *   API calls are limited to 'self'; Google Fonts is the only outside source.
  * - No 'unsafe-inline' scripts: an injected <script> tag cannot run.
  */
-const securityHeaders = helmet({
-    contentSecurityPolicy: {
-        directives: {
-            "script-src": [ "'self'" ],
-            "style-src": [ "'self'", "https://fonts.googleapis.com" ],
-            "font-src": [ "'self'", "https://fonts.gstatic.com" ],
-            "img-src": [ "'self'", "data:" ],
-            "connect-src": [ "'self'" ],
-            "frame-ancestors": [ "'none'" ],
-            // HSTS already moves browsers to HTTPS; this directive would also break plain-http localhost
-            "upgrade-insecure-requests": null
-        }
-    }
+const directives = {
+    "script-src": [ "'self'" ],
+    "style-src": [ "'self'", "https://fonts.googleapis.com" ],
+    "font-src": [ "'self'", "https://fonts.gstatic.com" ],
+    "img-src": [ "'self'", "data:" ],
+    "connect-src": [ "'self'" ],
+    "frame-ancestors": [ "'none'" ],
+    // HSTS already moves browsers to HTTPS; this directive would also break plain-http localhost
+    "upgrade-insecure-requests": null
+}
+
+const securityHeaders = helmet({ contentSecurityPolicy: { directives } })
+
+// Swagger UI's page has inline <style> blocks, so /api/docs alone also allows inline styles.
+// Scripts stay 'self'-only there too.
+const docsSecurityHeaders = helmet({
+    contentSecurityPolicy: { directives: { ...directives, "style-src": [ "'self'", "'unsafe-inline'" ] } }
 })
 
 const createLimiter = ({ windowMinutes, limit, message, ...options }) => rateLimit({
@@ -60,6 +64,7 @@ const loginFailureLimiter = createLimiter({
 
 module.exports = {
     securityHeaders,
+    docsSecurityHeaders,
     apiLimiter,
     authLimiter,
     loginFailureLimiter
