@@ -1,6 +1,9 @@
+const mongoose = require("mongoose")
 const accountModel = require("../models/account.model")
+const transactionModel = require("../models/transaction.model")
 const emailService = require("../services/email.service")
 const { TransferError, executeTransfer } = require("../services/transfer.service")
+const { getTransferLimits, sentToday, assertWithinDailyLimit } = require("../services/limits.service")
 const { isValidPaise, formatRupees } = require("../utils/money")
 
 const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i
@@ -58,10 +61,16 @@ function sendTransferResult(res, err, result, expected) {
         return res.status(409).json({ message: "This idempotency key was already used for a different transfer" })
     }
 
-    return res.status(result.replayed ? 200 : 201).json({
-        message: result.replayed ? "Transaction already processed" : "Transaction completed successfully",
-        transaction: result.transaction
-    })
+    if (result.replayed) {
+        return res.status(200).json({ message: "Transaction already processed", transaction: result.transaction })
+    }
+
+    // 202 Accepted: recorded, but no money moves until an admin approves it
+    if (result.transaction.status === "AWAITING_APPROVAL") {
+        return res.status(202).json({ message: "Transfer sent for admin approval", transaction: result.transaction })
+    }
+
+    return res.status(201).json({ message: "Transaction completed successfully", transaction: result.transaction })
 }
 
 /**
@@ -90,6 +99,15 @@ async function createTransaction(req, res) {
         return res.status(403).json({ message: "You can only transfer from your own account" })
     }
 
+    const { maxTransfer, approvalThreshold } = getTransferLimits()
+
+    if (amount > maxTransfer) {
+        return res.status(400).json({ message: `A single transfer can be at most ${formatRupees(maxTransfer)}` })
+    }
+
+    // Large transfers are recorded now and executed only when an admin approves them
+    const awaitApproval = amount > approvalThreshold
+
     let result
     try {
         result = await executeTransfer({
@@ -97,14 +115,18 @@ async function createTransaction(req, res) {
             toAccountId: toAccount,
             amount,
             idempotencyKey,
-            ownerId: req.user._id
+            ownerId: req.user._id,
+            awaitApproval,
+            fields: awaitApproval ? { requestedBy: req.user._id } : {},
+            // Checked under the sender lock, so parallel transfers cannot each see the old total
+            afterLock: (session) => assertWithinDailyLimit(fromAccount, amount, session)
         })
     } catch (err) {
         return sendTransferResult(res, err)
     }
 
     // Email is sent after the money has moved and never delays or fails the response
-    if (!result.replayed) {
+    if (!result.replayed && result.transaction.status === "COMPLETED") {
         emailService.sendTransactionEmail(req.user.email, req.user.name, formatRupees(amount), toAccount)
             .catch((err) => console.error("Transaction email failed:", err.message))
     }
@@ -152,7 +174,54 @@ async function createInitialFundsTransaction(req, res) {
     return sendTransferResult(res, null, result, { fromAccount: systemAccount._id, toAccount, amount })
 }
 
+/**
+ * - GET /api/transactions/limits/:accountId
+ * - The transfer limits, and how much of today's limit this account has used
+ */
+async function getLimitsController(req, res) {
+    const { accountId } = req.params
+
+    if (!OBJECT_ID_PATTERN.test(accountId)) {
+        return res.status(400).json({ message: "Account IDs must be 24 characters (0-9, a-f)" })
+    }
+
+    const account = await accountModel.findOne({ _id: accountId, user: req.user._id })
+    if (!account) {
+        return res.status(404).json({ message: "Account not found" })
+    }
+
+    const limits = getTransferLimits()
+    const sent = await sentToday(account._id)
+
+    return res.status(200).json({
+        ...limits,
+        sentToday: sent,
+        remainingToday: Math.max(limits.dailyLimit - sent, 0)
+    })
+}
+
+/**
+ * - GET /api/transactions/approvals
+ * - The user's transfers that are waiting for an admin, or were rejected in the last 30 days
+ */
+async function getMyApprovalRequestsController(req, res) {
+    const accountIds = (await accountModel.find({ user: req.user._id }).lean()).map((a) => a._id)
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+    const transactions = await transactionModel.find({
+        fromAccount: mongoose.trusted({ $in: accountIds }),
+        $or: [
+            { status: "AWAITING_APPROVAL" },
+            { status: "REJECTED", reviewedAt: mongoose.trusted({ $gte: since }) }
+        ]
+    }).sort({ createdAt: -1 }).limit(20).lean()
+
+    return res.status(200).json({ transactions })
+}
+
 module.exports = {
+    getLimitsController,
+    getMyApprovalRequestsController,
     createTransaction,
     createInitialFundsTransaction
 }

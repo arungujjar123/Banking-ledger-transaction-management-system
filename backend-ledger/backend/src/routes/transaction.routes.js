@@ -13,6 +13,18 @@ transactionRoutes.post("/", authMiddleware.authMiddleware, transactionController
 
 
 /**
+ * - GET /api/transactions/limits/:accountId
+ * - Transfer limits and how much of today's limit the account has used
+ */
+transactionRoutes.get("/limits/:accountId", authMiddleware.authMiddleware, transactionController.getLimitsController)
+
+/**
+ * - GET /api/transactions/approvals
+ * - The user's transfers waiting for (or rejected at) admin approval
+ */
+transactionRoutes.get("/approvals", authMiddleware.authMiddleware, transactionController.getMyApprovalRequestsController)
+
+/**
  * - POST /api/transactions/system/initial-funds
  * - Create initial funds transaction from system user
  */

@@ -18,6 +18,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminLedger } from './pages/AdminLedger';
 import { AdminTransactions } from './pages/AdminTransactions';
+import { AdminApprovals } from './pages/AdminApprovals';
 import { AdminBlockedTokens } from './pages/AdminBlockedTokens';
 import { NotFound } from './pages/NotFound';
 
@@ -45,6 +46,7 @@ export function App() {
                       <Route path="/admin/users" element={<AdminUsers />} />
                       <Route path="/admin/ledger" element={<AdminLedger />} />
                       <Route path="/admin/transactions" element={<AdminTransactions />} />
+                      <Route path="/admin/approvals" element={<AdminApprovals />} />
                       <Route path="/admin/blocked-tokens" element={<AdminBlockedTokens />} />
                     </Route>
                   </Route>

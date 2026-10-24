@@ -5,6 +5,7 @@ import { AccountCard } from '../components/user/AccountCard';
 import { LedgerTable } from '../components/user/LedgerTable';
 import { TransferModal } from '../components/user/TransferModal';
 import { AccountStatusBanner } from '../components/user/AccountStatusBanner';
+import { ApprovalRequests } from '../components/user/ApprovalRequests';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -112,6 +113,8 @@ export const UserDashboard = () => {
           </div>
         )}
       </section>
+
+      <ApprovalRequests />
 
       <LedgerTable
         entries={ledgerEntries}

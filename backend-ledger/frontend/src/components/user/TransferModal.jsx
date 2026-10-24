@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, CheckCircle2, Loader2, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, Info, Loader2, Send, XCircle } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { Button } from '../ui/Button';
 import { Input, Select } from '../ui/Input';
 import { generateIdempotencyKey } from '../../services/api';
-import { useAccountBalance, useAccountLookup, useCreateTransfer } from '../../hooks/queries';
+import { useAccountBalance, useAccountLookup, useCreateTransfer, useTransferLimits } from '../../hooks/queries';
 import { useToast } from '../../context/ToastContext';
 import { accountLabel, formatCurrency, parseRupeesToPaise, shortId } from '../../utils/format';
 
@@ -82,6 +82,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
   const recipientId = toAccount.trim();
   const lookup = useAccountLookup(recipientId);
   const { data: available, isLoading: balanceLoading } = useAccountBalance(fromAccount);
+  const { data: limits } = useTransferLimits(fromAccount);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -105,7 +106,15 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
       ? 'Enter an amount greater than 0 with at most 2 decimal places.'
       : typeof available === 'number' && paise > available
         ? `That is more than the ${formatCurrency(available)} available in this account.`
-        : null;
+        : limits && paise > limits.maxTransfer
+          ? `A single transfer can be at most ${formatCurrency(limits.maxTransfer)}.`
+          : limits && paise > limits.remainingToday
+            ? `That is over your daily limit. You can send ${formatCurrency(limits.remainingToday)} more today.`
+            : null;
+
+  // Above the threshold the server records the transfer and an admin has to approve it
+  const needsApproval = Boolean(limits && paise && paise > limits.approvalThreshold);
+  const isPending = result?.transaction?.status === 'AWAITING_APPROVAL';
 
   const recipientOk =
     ACCOUNT_ID_PATTERN.test(recipientId) &&
@@ -141,7 +150,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
   };
 
   const recipientName = lookup.data?.isOwnAccount ? 'Your account' : lookup.data?.ownerName;
-  const titles = { form: 'Transfer funds', review: 'Review transfer', done: 'Transfer complete' };
+  const titles = { form: 'Transfer funds', review: 'Review transfer', done: isPending ? 'Sent for approval' : 'Transfer complete' };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={titles[step]}>
@@ -161,6 +170,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
                 </Select>
                 <p className="text-[13px] text-subtle mt-1.5 tabular-nums">
                   Available: {balanceLoading ? '…' : formatCurrency(available)}
+                  {limits && <> · {formatCurrency(limits.remainingToday)} left of today&apos;s limit</>}
                 </p>
               </div>
 
@@ -226,12 +236,21 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
             </SummaryRow>
           </div>
 
+          {needsApproval && (
+            <p className="flex items-start gap-2 rounded-control bg-warn-soft text-warn px-3.5 py-3 text-[13px]">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Transfers above {formatCurrency(limits.approvalThreshold)} need an admin&apos;s approval. No money moves until it is approved.
+              </span>
+            </p>
+          )}
+
           <div className="flex items-center justify-between gap-2.5">
             <Button variant="ghost" icon={ArrowLeft} onClick={() => setStep('form')} disabled={transfer.isPending}>
               Back
             </Button>
             <Button icon={Send} onClick={handleConfirm} loading={transfer.isPending} loadingText="Sending...">
-              Confirm transfer
+              {needsApproval ? 'Send for approval' : 'Confirm transfer'}
             </Button>
           </div>
         </div>
@@ -240,12 +259,18 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
       {step === 'done' && (
         <div className="space-y-5">
           <div className="text-center py-2">
-            <div className="mx-auto h-12 w-12 rounded-full bg-accent-soft text-accent-fg flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
+            <div
+              className={`mx-auto h-12 w-12 rounded-full flex items-center justify-center ${
+                isPending ? 'bg-warn-soft text-warn' : 'bg-accent-soft text-accent-fg'
+              }`}
+            >
+              {isPending ? <Clock className="w-6 h-6" aria-hidden="true" /> : <CheckCircle2 className="w-6 h-6" aria-hidden="true" />}
             </div>
             <div className="text-[30px] font-bold tracking-tight tabular-nums text-fg mt-3">{formatCurrency(paise)}</div>
             <p className="text-muted mt-1">
-              sent to <span className="font-semibold text-fg">{recipientName}</span>
+              {isPending ? 'will be sent to ' : 'sent to '}
+              <span className="font-semibold text-fg">{recipientName}</span>
+              {isPending && ' once an admin approves it'}
             </p>
           </div>
 

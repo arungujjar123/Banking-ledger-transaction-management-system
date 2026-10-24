@@ -6,12 +6,15 @@ export const queryKeys = {
   ledger: ['ledger'],
   balance: (accountId) => ['balance', accountId],
   lookup: (accountId) => ['lookup', accountId],
+  limits: (accountId) => ['limits', accountId],
+  approvalRequests: ['approval-requests'],
   admin: {
     all: ['admin'],
     users: ['admin', 'users'],
     ledger: ['admin', 'ledger'],
     transactions: ['admin', 'transactions'],
     tokens: ['admin', 'tokens'],
+    approvals: ['admin', 'approvals'],
   },
 };
 
@@ -65,7 +68,18 @@ export const useCreateAccount = () => {
   });
 };
 
-// A transfer changes accounts, balances and ledger entries, so all of them are refetched
+export const useTransferLimits = (accountId) =>
+  useQuery({
+    queryKey: queryKeys.limits(accountId),
+    queryFn: () => transactionService.getLimits(accountId),
+    enabled: Boolean(accountId),
+  });
+
+export const useMyApprovalRequests = () =>
+  useQuery({ queryKey: queryKeys.approvalRequests, queryFn: transactionService.getMyApprovalRequests });
+
+// A transfer changes accounts, balances, ledger entries and today's limit (or, above the
+// approval threshold, the list of transfers waiting for approval), so all of them are refetched
 export const useCreateTransfer = () => {
   const queryClient = useQueryClient();
 
@@ -75,6 +89,8 @@ export const useCreateTransfer = () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
       queryClient.invalidateQueries({ queryKey: ['balance'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.ledger });
+      queryClient.invalidateQueries({ queryKey: ['limits'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvalRequests });
     },
   });
 };
@@ -98,6 +114,26 @@ export const useUpdateUserStatus = () => {
   return useMutation({
     mutationFn: ({ userId, status }) => adminService.updateUserStatus(userId, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.users }),
+  });
+};
+
+// Only admins load the queue (the sidebar shows its size)
+export const useApprovals = ({ enabled = true } = {}) =>
+  useQuery({ queryKey: queryKeys.admin.approvals, queryFn: adminService.getApprovals, enabled });
+
+// Approving moves money; either decision empties a queue slot, so every admin view is refetched
+export const useReviewTransfer = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ transactionId, decision, reason }) =>
+      decision === 'approve'
+        ? adminService.approveTransfer(transactionId)
+        : adminService.rejectTransfer({ transactionId, reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      queryClient.invalidateQueries({ queryKey: ['balance'] });
+    },
   });
 };
 

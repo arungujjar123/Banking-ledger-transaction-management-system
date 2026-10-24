@@ -80,6 +80,12 @@ export const transactionService = {
       idempotencyKey: idempotencyKey || generateIdempotencyKey(),
     }).then((res) => res.data),
 
+  // Transfer limits and what this account has left to send today (all amounts in paise)
+  getLimits: (accountId) => api.get(`/transactions/limits/${accountId}`).then((res) => res.data),
+
+  // The user's transfers waiting for, or recently rejected at, admin approval
+  getMyApprovalRequests: () => api.get('/transactions/approvals').then((res) => res.data.transactions || []),
+
   createInitialFunds: ({ toAccount, amount, idempotencyKey }) =>
     api.post('/transactions/system/initial-funds', {
       toAccount,
@@ -98,6 +104,13 @@ export const adminService = {
   getAllTransactions: () => api.get('/admin/transactions').then((res) => res.data.transactions || []),
 
   updateUserStatus: (userId, status) => api.patch(`/admin/users/${userId}/status`, { status }).then((res) => res.data),
+
+  getApprovals: () => api.get('/admin/approvals').then((res) => res.data.transactions || []),
+
+  approveTransfer: (transactionId) => api.post(`/admin/approvals/${transactionId}/approve`).then((res) => res.data),
+
+  rejectTransfer: ({ transactionId, reason }) =>
+    api.post(`/admin/approvals/${transactionId}/reject`, { reason }).then((res) => res.data),
 
   reverseTransaction: ({ transactionId, reason, idempotencyKey }) =>
     api.post(`/admin/transactions/${transactionId}/reverse`, { reason, idempotencyKey }).then((res) => res.data),
