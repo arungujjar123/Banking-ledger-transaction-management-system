@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   Receipt,
   ClipboardCheck,
+  Scale,
 } from 'lucide-react';
 
 const userNavItems = [
@@ -26,6 +27,7 @@ const adminNavItems = [
   { label: 'Ledger', path: '/admin/ledger', icon: BookOpenCheck },
   { label: 'Transactions', path: '/admin/transactions', icon: Receipt },
   { label: 'Approvals', path: '/admin/approvals', icon: ClipboardCheck, showsApprovalCount: true },
+  { label: 'Reconciliation', path: '/admin/reconciliation', icon: Scale },
   { label: 'Blocked tokens', path: '/admin/blocked-tokens', icon: ShieldAlert },
 ];
 

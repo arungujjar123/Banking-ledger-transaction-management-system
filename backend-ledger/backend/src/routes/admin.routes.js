@@ -30,6 +30,13 @@ router.get('/approvals', authMiddleware.authSystemUserMiddleware, adminControlle
 router.post('/approvals/:transactionId/approve', authMiddleware.authSystemUserMiddleware, adminController.approveTransferController);
 router.post('/approvals/:transactionId/reject', authMiddleware.authSystemUserMiddleware, adminController.rejectTransferController);
 
+/**
+ * - GET /api/admin/reconciliation: run the ledger consistency checks
+ * - POST /api/admin/snapshots: take balance snapshots now
+ */
+router.get('/reconciliation', authMiddleware.authSystemUserMiddleware, adminController.getReconciliationController);
+router.post('/snapshots', authMiddleware.authSystemUserMiddleware, adminController.takeSnapshotsController);
+
 // PATCH /api/admin/users/:userId/status
 router.patch('/users/:userId/status', authMiddleware.authSystemUserMiddleware, adminController.updateUserStatusController);
 

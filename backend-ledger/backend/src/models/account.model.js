@@ -1,5 +1,6 @@
 const mongoose = require("mongoose")
 const ledgerModel = require("./ledger.model")
+const balanceSnapshotModel = require("./balanceSnapshot.model")
 
 const accountSchema = new mongoose.Schema({
     user: {
@@ -34,52 +35,21 @@ const accountSchema = new mongoose.Schema({
 
 accountSchema.index({ user: 1, status: 1 })
 
-// Pass a session to read the balance inside a transaction (sees that transaction's snapshot)
+/**
+ * - Balance = credits - debits over the account's ledger entries
+ * - Starts from the account's latest balance snapshot, if any, and adds only the entries
+ *   written since; without a snapshot every entry is summed
+ * - Pass a session to read the balance inside a transaction (sees that transaction's snapshot)
+ */
 accountSchema.methods.getBalance = async function (session) {
-    const pipeline = ledgerModel.aggregate([
-        { $match: { account: this._id } },
-        {
-            $group: {
-                _id: null,
-                totalDebit: {
-                    $sum: {
-                        $cond: [
-                            { $eq: [ "$type", "DEBIT" ] },
-                            "$amount",
-                            0
-                        ]
-                    }
-                },
-                totalCredit: {
-                    $sum: {
-                        $cond: [
-                            { $eq: [ "$type", "CREDIT" ] },
-                            "$amount",
-                            0
-                        ]
-                    }
-                }
-            }
-        },
-        {
-            $project: {
-                _id: 0,
-                balance: { $subtract: [ "$totalCredit", "$totalDebit" ] }
-            }
-        }
-    ])
+    const snapshot = await balanceSnapshotModel.findOne({ account: this._id }).session(session ?? null).lean()
 
-    if (session) {
-        pipeline.session(session)
-    }
+    const [ result ] = await ledgerModel.aggregate([
+        { $match: { account: this._id, ...(snapshot && { createdAt: { $gte: snapshot.asOf } }) } },
+        { $group: { _id: null, total: { $sum: ledgerModel.signedAmount } } }
+    ]).session(session ?? null)
 
-    const balanceData = await pipeline
-
-    if (balanceData.length === 0) {
-        return 0
-    }
-
-    return balanceData[ 0 ].balance
+    return (snapshot?.balance ?? 0) + (result?.total ?? 0)
 }
 
 const accountModel = mongoose.model("account", accountSchema)

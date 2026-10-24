@@ -4,6 +4,7 @@ const app = require("./src/app")
 const connectToDB = require("./src/config/db")
 const { migrateAmountsToPaise } = require("./src/migrations/amountsToPaise")
 const { ensureAdminUser, ensureDemoUser } = require("./src/services/seed.service")
+const { scheduleDailySnapshots } = require("./src/services/snapshot.service")
 
 const PORT = process.env.PORT || 3000
 
@@ -24,6 +25,8 @@ async function start() {
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`)
     })
+
+    scheduleDailySnapshots()
 }
 
 start().catch((err) => {
