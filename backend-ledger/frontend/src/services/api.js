@@ -1,19 +1,13 @@
 import axios from 'axios';
 
+// The session lives in an httpOnly cookie that the browser sends by itself. Page scripts
+// never see the token, so an XSS bug cannot steal it.
 const api = axios.create({
   baseURL: '/api',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-});
-
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
 });
 
 let unauthorizedHandler = null;
@@ -46,19 +40,12 @@ api.interceptors.response.use(
 
 export const generateIdempotencyKey = () => crypto.randomUUID();
 
-const saveToken = (data) => {
-  if (data.token) {
-    localStorage.setItem('token', data.token);
-  }
-  return data;
-};
-
 export const authService = {
-  login: (email, password) => api.post('/auth/login', { email, password }).then((res) => saveToken(res.data)),
+  login: (email, password) => api.post('/auth/login', { email, password }).then((res) => res.data),
 
-  register: (name, email, password) => api.post('/auth/register', { name, email, password }).then((res) => saveToken(res.data)),
+  register: (name, email, password) => api.post('/auth/register', { name, email, password }).then((res) => res.data),
 
-  demoLogin: () => api.post('/auth/demo-login').then((res) => saveToken(res.data)),
+  demoLogin: () => api.post('/auth/demo-login').then((res) => res.data),
 
   me: () => api.get('/auth/me').then((res) => res.data.user),
 
@@ -66,9 +53,7 @@ export const authService = {
     try {
       await api.post('/auth/logout');
     } catch {
-      // The token may already be invalid; the local session is cleared either way
-    } finally {
-      localStorage.removeItem('token');
+      // The session may already be invalid; the local session is cleared either way
     }
   },
 };

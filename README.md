@@ -39,6 +39,7 @@ A full-stack double-entry banking ledger. Balances are derived from an immutable
 - **Recipient confirmation.** Before sending, the app looks up the destination account and shows a masked owner name ("Rahul S."), then asks for confirmation on a review screen.
 - **Role-based admin console.** Admins approve, freeze and unfreeze accounts, fund users from a system reserve, and audit the global ledger, every transaction and revoked sessions.
 - **Revocable sessions.** JWTs are blacklisted on logout (with a TTL index that cleans them up), so a logged-out token can never be reused.
+- **Hardened auth.** The session lives in an `httpOnly`, `sameSite=strict`, `secure` cookie that page scripts cannot read; logins are rate limited per account and per IP; request data can never act as a MongoDB query operator; `helmet` sets a strict Content-Security-Policy.
 - **Polished UI.** Light and dark themes (following the OS by default), responsive layout with a mobile navigation drawer, loading, empty and error states on every page.
 
 ---
@@ -134,7 +135,7 @@ backend-ledger/
 │           ├── transfer.service.js Atomic, idempotent transfers with sender locking
 │           ├── seed.service.js     Admin and demo user seeding
 │           └── email.service.js
-│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration)
+│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security)
 └── frontend/                       React + Vite client
     └── src/
         ├── pages/                  User and admin pages, login, register, 404
@@ -152,7 +153,9 @@ backend-ledger/
 
 ## API reference
 
-All endpoints are under `/api`. Authenticated requests send the JWT as a cookie or an `Authorization: Bearer` header.
+All endpoints are under `/api`. The web app authenticates with the `httpOnly` session cookie set at login; API clients can instead send the JWT returned in the login response as an `Authorization: Bearer` header.
+
+Rate limits (per 15 minutes unless noted): 10 failed logins per account, 30 login / register / demo-login requests per client IP, and 300 API requests per IP per minute. A blocked request gets `429` with a `Retry-After` header.
 
 ### Auth
 | Method | Endpoint | Access | Description |
@@ -241,6 +244,7 @@ npm run dev            # API on http://localhost:3000
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | Optional | Enables the demo login; the demo user is created and funded once |
 | `EMAIL_USER` + `EMAIL_PASS`, or `CLIENT_ID` / `CLIENT_SECRET` / `REFRESH_TOKEN` | Optional | Gmail credentials for notification emails (app password or OAuth2) |
 | `PORT` | Optional | Defaults to `3000` |
+| `TRUST_PROXY_HOPS` | Optional | Number of proxies in front of the app, so rate limits see the real client IP. Defaults to `1` |
 
 ### Frontend
 
@@ -255,7 +259,7 @@ Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explo
 
 ### Tests
 
-The backend has 61 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
+The backend has 78 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
 
 - **Transfers:** balances, ledger entries, validation, ownership, inactive accounts, authentication
 - **Concurrency:** parallel transfers never overspend, parallel fundings all apply
@@ -264,6 +268,7 @@ The backend has 61 API tests (Jest + Supertest) that run against a real MongoDB 
 - **Accounts:** balance ownership, recipient lookup, ledger counterparties, name masking
 - **Ledger:** entries cannot be updated or deleted, and every transaction has a matching debit and credit
 - **Money:** fractional paise are rejected, many small transfers add up exactly, and the paise migration converts old data once and only once
+- **Security:** query-operator injection, cookie flags, cookie-only sessions, security headers, JSON errors without stack traces, and rate limits
 
 ```bash
 cd backend-ledger/backend
@@ -294,6 +299,11 @@ Set the environment variables from the table above in the Render dashboard. [`re
 ## Security notes
 
 - Passwords are hashed with bcrypt and never returned by the API
+- The session token is in an `httpOnly` cookie (`sameSite=strict`, `secure` over HTTPS), never in `localStorage`, so an XSS bug cannot read it and other sites cannot ride on it (CSRF)
+- Only plain strings reach database queries, and Mongoose's `sanitizeFilter` is on: a body such as `{"email": {"$regex": "^a"}}` is rejected instead of matching an account
+- Failed logins are limited per account and per IP; a login with an unknown email takes as long as one with a wrong password, so timing does not reveal which emails are registered
+- `helmet` sets a Content-Security-Policy without inline scripts, HSTS, `nosniff` and `frame-ancestors 'none'`
+- Unexpected errors return a short JSON message; stack traces stay in the server logs
 - Users can only send money from accounts they own; admin routes require a system user
 - Logged-out JWTs are blacklisted until they expire
 - The demo login can never produce an admin session, even if misconfigured
@@ -304,8 +314,10 @@ Set the environment variables from the table above in the Render dashboard. [`re
 
 ## Roadmap
 
-- Rate limiting on auth endpoints, `httpOnly` / `secure` / `sameSite` cookie flags, and `helmet`
-- Rely on the `httpOnly` cookie alone and stop keeping the token in `localStorage`
+- Transaction reversal (a new, opposite transfer that references the original)
+- Daily transfer limits and maker-checker approval for large transfers
+- Balance snapshots and a reconciliation report
+- OpenAPI (Swagger) documentation
 
 ---
 
