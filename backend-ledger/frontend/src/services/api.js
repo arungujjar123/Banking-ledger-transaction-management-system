@@ -91,14 +91,14 @@ export const transactionService = {
     api.post('/transactions', {
       fromAccount,
       toAccount,
-      amount: Number(amount),
+      amount, // integer paise
       idempotencyKey: idempotencyKey || generateIdempotencyKey(),
     }).then((res) => res.data),
 
   createInitialFunds: ({ toAccount, amount, idempotencyKey }) =>
     api.post('/transactions/system/initial-funds', {
       toAccount,
-      amount: Number(amount),
+      amount, // integer paise
       idempotencyKey: idempotencyKey || generateIdempotencyKey(),
     }).then((res) => res.data),
 };

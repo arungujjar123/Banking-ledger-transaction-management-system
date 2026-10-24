@@ -1,9 +1,9 @@
 const accountModel = require("../models/account.model")
 const emailService = require("../services/email.service")
 const { TransferError, executeTransfer } = require("../services/transfer.service")
+const { isValidPaise, formatRupees } = require("../utils/money")
 
 const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i
-const AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/
 
 /**
  * - Validate the shared transfer fields; returns an error message or null
@@ -21,9 +21,9 @@ function validateTransferInput({ fromAccount, toAccount, amount, idempotencyKey 
         return "Sender and receiver accounts must be different"
     }
 
-    const numericAmount = Number(amount)
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0 || !AMOUNT_PATTERN.test(String(amount))) {
-        return "Amount must be greater than 0 with at most 2 decimal places"
+    // Amounts are integer paise: 150050 means ₹1,500.50
+    if (!isValidPaise(amount)) {
+        return "amount must be a positive whole number of paise (e.g. 150050 for ₹1,500.50)"
     }
 
     if (typeof idempotencyKey !== "string" || idempotencyKey.length > 100) {
@@ -90,13 +90,12 @@ async function createTransaction(req, res) {
         return res.status(403).json({ message: "You can only transfer from your own account" })
     }
 
-    const numericAmount = Number(amount)
     let result
     try {
         result = await executeTransfer({
             fromAccountId: fromAccount,
             toAccountId: toAccount,
-            amount: numericAmount,
+            amount,
             idempotencyKey,
             ownerId: req.user._id
         })
@@ -106,11 +105,11 @@ async function createTransaction(req, res) {
 
     // Email is sent after the money has moved and never delays or fails the response
     if (!result.replayed) {
-        emailService.sendTransactionEmail(req.user.email, req.user.name, numericAmount, toAccount)
+        emailService.sendTransactionEmail(req.user.email, req.user.name, formatRupees(amount), toAccount)
             .catch((err) => console.error("Transaction email failed:", err.message))
     }
 
-    return sendTransferResult(res, null, result, { fromAccount, toAccount, amount: numericAmount })
+    return sendTransferResult(res, null, result, { fromAccount, toAccount, amount })
 }
 
 /**
@@ -136,13 +135,12 @@ async function createInitialFundsTransaction(req, res) {
         return res.status(400).json({ message: "Cannot fund the system reserve account from itself" })
     }
 
-    const numericAmount = Number(amount)
     let result
     try {
         result = await executeTransfer({
             fromAccountId: systemAccount._id,
             toAccountId: toAccount,
-            amount: numericAmount,
+            amount,
             idempotencyKey,
             allowNegative: true,
             requireActiveReceiver: false
@@ -151,7 +149,7 @@ async function createInitialFundsTransaction(req, res) {
         return sendTransferResult(res, err)
     }
 
-    return sendTransferResult(res, null, result, { fromAccount: systemAccount._id, toAccount, amount: numericAmount })
+    return sendTransferResult(res, null, result, { fromAccount: systemAccount._id, toAccount, amount })
 }
 
 module.exports = {

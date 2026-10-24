@@ -32,6 +32,7 @@ A full-stack double-entry banking ledger. Balances are derived from an immutable
 - **Double-entry bookkeeping.** Every transfer writes exactly one `DEBIT` and one `CREDIT` entry. The sum of all debits always equals the sum of all credits.
 - **Derived balances.** There is no `balance` field to tamper with: an account's balance is aggregated from its ledger entries on every read.
 - **Immutable ledger.** Every ledger field is marked immutable, and Mongoose pre-hooks reject update and delete queries (`updateOne`, `findOneAndUpdate`, `deleteMany`, ...) on ledger entries.
+- **Exact money.** Amounts are stored and exchanged as integer paise (₹1,500.50 is `150050`), so sums never drift the way floating-point rupees do (`0.1 + 0.2 !== 0.3`). Existing data was converted by a one-time migration that runs before the server accepts requests.
 - **Atomic transfers.** The transaction record and both ledger entries are written in one MongoDB transaction, so a failure leaves nothing behind.
 - **No double spending.** Concurrent transfers from the same account are serialized with a sender lock (see [below](#why-transfers-lock-the-sender)). Verified on a real replica set: 5 parallel transfers of ₹40,000 against a ₹45,000 balance let exactly 1 through.
 - **Idempotent API.** Retrying a request with the same idempotency key returns the original transaction instead of moving money twice, even when the retries race each other.
@@ -133,7 +134,7 @@ backend-ledger/
 │           ├── transfer.service.js Atomic, idempotent transfers with sender locking
 │           ├── seed.service.js     Admin and demo user seeding
 │           └── email.service.js
-│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin)
+│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration)
 └── frontend/                       React + Vite client
     └── src/
         ├── pages/                  User and admin pages, login, register, 404
@@ -177,6 +178,8 @@ All endpoints are under `/api`. Authenticated requests send the JWT as a cookie 
 | `POST` | `/transactions` | Owner of `fromAccount` | Transfer between two accounts |
 | `POST` | `/transactions/system/initial-funds` | Admin | Fund an account from the system reserve |
 
+All amounts are integers in **paise** (₹1 = 100). Fractions, strings and non-positive values are rejected with `400`.
+
 ```http
 POST /api/transactions
 Content-Type: application/json
@@ -184,7 +187,7 @@ Content-Type: application/json
 {
   "fromAccount": "6adbcf80fc6f830769b188ef",
   "toAccount": "6adbcf80fc6f830769b1890a",
-  "amount": 1500,
+  "amount": 150050,
   "idempotencyKey": "3f1c2a9e-7b1d-4c55-9e0a-2a4f6d8b1c33"
 }
 ```
@@ -252,7 +255,7 @@ Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explo
 
 ### Tests
 
-The backend has 55 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
+The backend has 61 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
 
 - **Transfers:** balances, ledger entries, validation, ownership, inactive accounts, authentication
 - **Concurrency:** parallel transfers never overspend, parallel fundings all apply
@@ -260,6 +263,7 @@ The backend has 55 API tests (Jest + Supertest) that run against a real MongoDB 
 - **Auth and admin:** registration, login, logout revocation, demo login safety, admin-only routes, initial funds
 - **Accounts:** balance ownership, recipient lookup, ledger counterparties, name masking
 - **Ledger:** entries cannot be updated or deleted, and every transaction has a matching debit and credit
+- **Money:** fractional paise are rejected, many small transfers add up exactly, and the paise migration converts old data once and only once
 
 ```bash
 cd backend-ledger/backend
@@ -301,7 +305,6 @@ Set the environment variables from the table above in the Render dashboard. [`re
 ## Roadmap
 
 - Rate limiting on auth endpoints, `httpOnly` / `secure` / `sameSite` cookie flags, and `helmet`
-- Store amounts as integer paise instead of floating-point rupees
 - Rely on the `httpOnly` cookie alone and stop keeping the token in `localStorage`
 
 ---

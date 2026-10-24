@@ -6,7 +6,7 @@ import { Input, Select } from '../ui/Input';
 import { generateIdempotencyKey } from '../../services/api';
 import { useDisburseFunds } from '../../hooks/queries';
 import { useToast } from '../../context/ToastContext';
-import { accountLabel } from '../../utils/format';
+import { accountLabel, parseRupeesToPaise } from '../../utils/format';
 
 export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
   const [toAccount, setToAccount] = useState('');
@@ -28,15 +28,16 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!toAccount || !amount || Number(amount) <= 0) {
-      showError('Please provide a valid destination account ID and amount');
+    const paise = parseRupeesToPaise(amount);
+    if (!toAccount || !paise) {
+      showError('Enter a destination account and an amount greater than 0 with at most 2 decimal places');
       return;
     }
 
     try {
       const res = await disburse.mutateAsync({
         toAccount,
-        amount: Number(amount),
+        amount: paise,
         idempotencyKey,
       });
 
@@ -77,10 +78,10 @@ export const InitialFundsModal = ({ isOpen, onClose, targetUser }) => {
         <Input
           label="Amount"
           prefix="₹"
-          type="number"
-          min="1"
+          inputMode="decimal"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => setAmount(e.target.value.trim())}
+          placeholder="0.00"
           className="tabular-nums"
           required
         />

@@ -119,14 +119,14 @@ async function ensureDemoUser(adminAccount) {
             await createSeedTransfer({
                 fromAccount: adminAccount._id,
                 toAccount: primary._id,
-                amount: 50000,
+                amount: 5000000, // ₹50,000.00 in paise
                 idempotencyKey: fundingKey
             }, session)
 
             await createSeedTransfer({
                 fromAccount: primary._id,
                 toAccount: savings._id,
-                amount: 5000,
+                amount: 500000, // ₹5,000.00 in paise
                 idempotencyKey: `seed-demo-transfer-${demoUser._id}`
             }, session)
         })
