@@ -17,6 +17,8 @@ const statuses = {
   CLOSED: { label: 'Closed', tone: 'neutral' },
   FAILED: { label: 'Failed', tone: 'danger' },
   REVERSED: { label: 'Reversed', tone: 'info' },
+  AWAITING_APPROVAL: { label: 'Awaiting approval', tone: 'warning' },
+  REJECTED: { label: 'Rejected', tone: 'danger' },
 };
 
 export const Badge = ({ tone = 'neutral', className, children }) => (

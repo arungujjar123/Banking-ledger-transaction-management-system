@@ -22,6 +22,14 @@ router.get('/blocked-tokens', authMiddleware.authSystemUserMiddleware, adminCont
  */
 router.post('/transactions/:transactionId/reverse', authMiddleware.authSystemUserMiddleware, adminController.reverseTransactionController);
 
+/**
+ * - Maker-checker: transfers above the approval threshold wait here for an admin
+ * - GET /api/admin/approvals, POST /api/admin/approvals/:transactionId/approve | /reject
+ */
+router.get('/approvals', authMiddleware.authSystemUserMiddleware, adminController.getPendingApprovalsController);
+router.post('/approvals/:transactionId/approve', authMiddleware.authSystemUserMiddleware, adminController.approveTransferController);
+router.post('/approvals/:transactionId/reject', authMiddleware.authSystemUserMiddleware, adminController.rejectTransferController);
+
 // PATCH /api/admin/users/:userId/status
 router.patch('/users/:userId/status', authMiddleware.authSystemUserMiddleware, adminController.updateUserStatusController);
 

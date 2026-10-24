@@ -17,8 +17,8 @@ const transactionSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: {
-            values: [ "PENDING", "COMPLETED", "FAILED", "REVERSED" ],
-            message: "Status can be either PENDING, COMPLETED, FAILED or REVERSED",
+            values: [ "PENDING", "AWAITING_APPROVAL", "COMPLETED", "REJECTED", "FAILED", "REVERSED" ],
+            message: "Status can be PENDING, AWAITING_APPROVAL, COMPLETED, REJECTED, FAILED or REVERSED",
         },
         default: "PENDING"
     },
@@ -51,6 +51,21 @@ const transactionSchema = new mongoose.Schema({
     reversedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "user"
+    },
+    // Set on transfers above the approval threshold: who asked for it, and the admin's decision
+    requestedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user"
+    },
+    reviewedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user"
+    },
+    reviewedAt: Date,
+    rejectionReason: {
+        type: String,
+        trim: true,
+        maxlength: [ 500, "Rejection reason must be at most 500 characters" ]
     }
 }, {
     timestamps: true

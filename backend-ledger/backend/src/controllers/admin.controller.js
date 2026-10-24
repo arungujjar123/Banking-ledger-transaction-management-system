@@ -5,6 +5,7 @@ const transactionModel = require('../models/transaction.model');
 const tokenBlackListModel = require('../models/blackList.model');
 const { TransferError } = require('../services/transfer.service');
 const { reverseTransaction } = require('../services/reversal.service');
+const { approveTransfer, rejectTransfer } = require('../services/approval.service');
 
 const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
 
@@ -156,7 +157,73 @@ async function reverseTransactionController(req, res) {
     }
 }
 
+// Shared answer for review endpoints: business errors keep their status, anything else is a 500
+function sendReviewError(res, err, action) {
+    if (err instanceof TransferError) {
+        return res.status(err.status).json({ message: err.message });
+    }
+    console.error(`${action} failed:`, err);
+    return res.status(500).json({ message: `${action} failed. Nothing was changed, please try again.` });
+}
+
+/**
+ * - GET /api/admin/approvals
+ * - Transfers waiting for approval, oldest first, with who asked for them
+ */
+async function getPendingApprovalsController(req, res) {
+    const transactions = await transactionModel.find({ status: "AWAITING_APPROVAL" })
+        .sort({ createdAt: 1 })
+        .populate("requestedBy", "name email")
+        .lean();
+
+    res.status(200).json({ transactions });
+}
+
+/**
+ * - POST /api/admin/approvals/:transactionId/approve
+ * - Execute a transfer that is waiting for approval (see services/approval.service.js)
+ */
+async function approveTransferController(req, res) {
+    const { transactionId } = req.params;
+    if (!OBJECT_ID_PATTERN.test(transactionId)) {
+        return res.status(400).json({ message: "Transaction IDs are 24 characters (0-9, a-f)" });
+    }
+
+    try {
+        const transaction = await approveTransfer({ transactionId, adminId: req.user._id });
+        return res.status(200).json({ message: "Transfer approved", transaction });
+    } catch (err) {
+        return sendReviewError(res, err, "Approval");
+    }
+}
+
+/**
+ * - POST /api/admin/approvals/:transactionId/reject
+ * - Body: { reason }
+ */
+async function rejectTransferController(req, res) {
+    const { transactionId } = req.params;
+    const { reason } = req.body;
+
+    if (!OBJECT_ID_PATTERN.test(transactionId)) {
+        return res.status(400).json({ message: "Transaction IDs are 24 characters (0-9, a-f)" });
+    }
+    if (typeof reason !== "string" || reason.trim().length < 3 || reason.trim().length > 500) {
+        return res.status(400).json({ message: "A reason between 3 and 500 characters is required" });
+    }
+
+    try {
+        const transaction = await rejectTransfer({ transactionId, adminId: req.user._id, reason: reason.trim() });
+        return res.status(200).json({ message: "Transfer rejected", transaction });
+    } catch (err) {
+        return sendReviewError(res, err, "Rejection");
+    }
+}
+
 module.exports = {
+    getPendingApprovalsController,
+    approveTransferController,
+    rejectTransferController,
     reverseTransactionController,
     getAllUsersController,
     getAllLedgerEntriesController,

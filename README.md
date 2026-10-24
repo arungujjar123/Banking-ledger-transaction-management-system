@@ -40,6 +40,7 @@ A full-stack double-entry banking ledger. Balances are derived from an immutable
 - **Role-based admin console.** Admins approve, freeze and unfreeze accounts, fund users from a system reserve, and audit the global ledger, every transaction and revoked sessions.
 - **Revocable sessions.** JWTs are blacklisted on logout (with a TTL index that cleans them up), so a logged-out token can never be reused.
 - **Reversals, not edits.** An admin undoes a transfer by writing a new, opposite transfer linked to the original, which is marked `REVERSED`. It happens atomically, at most once (a unique index stops even parallel requests), and only if the receiver still has the money.
+- **Limits and maker-checker.** Users can send at most ₹1,00,000 per transfer and per account per day (IST). Transfers above ₹25,000 are recorded as `AWAITING_APPROVAL` and move money only when an admin approves them. The daily limit is checked under the sender lock, so parallel transfers cannot slip past it together.
 - **Hardened auth.** The session lives in an `httpOnly`, `sameSite=strict`, `secure` cookie that page scripts cannot read; logins are rate limited per account and per IP; request data can never act as a MongoDB query operator; `helmet` sets a strict Content-Security-Policy.
 - **Polished UI.** Light and dark themes (following the OS by default), responsive layout with a mobile navigation drawer, loading, empty and error states on every page.
 
@@ -105,6 +106,7 @@ The logic lives in [`backend/src/services/transfer.service.js`](backend-ledger/b
 - Approve pending accounts, freeze and unfreeze active ones, search and filter users by status
 - Fund any account from the system reserve (recorded as a normal double-entry transfer)
 - Global ledger, every transaction with its idempotency key, and the list of revoked sessions
+- Approve or reject large transfers from an approvals queue (with a count in the sidebar); approval re-runs every balance and account check
 - Reverse a completed transfer with a recorded reason; reversal rows link to the transfer they undo, and users see "Reversal from" in their ledger
 
 ---
@@ -137,7 +139,7 @@ backend-ledger/
 │           ├── transfer.service.js Atomic, idempotent transfers with sender locking
 │           ├── seed.service.js     Admin and demo user seeding
 │           └── email.service.js
-│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security, reversals)
+│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security, reversals, limits)
 └── frontend/                       React + Vite client
     └── src/
         ├── pages/                  User and admin pages, login, register, 404
@@ -182,6 +184,8 @@ Rate limits (per 15 minutes unless noted): 10 failed logins per account, 30 logi
 |---|---|---|---|
 | `POST` | `/transactions` | Owner of `fromAccount` | Transfer between two accounts |
 | `POST` | `/transactions/system/initial-funds` | Admin | Fund an account from the system reserve |
+| `GET` | `/transactions/limits/:accountId` | Owner | Transfer limits and what the account can still send today |
+| `GET` | `/transactions/approvals` | User | The user's transfers awaiting approval, or rejected in the last 30 days |
 
 All amounts are integers in **paise** (₹1 = 100). Fractions, strings and non-positive values are rejected with `400`.
 
@@ -200,8 +204,9 @@ Content-Type: application/json
 | Status | Meaning |
 |---|---|
 | `201` | Transfer completed |
+| `202` | Above the approval threshold: recorded as `AWAITING_APPROVAL`, no money moved yet |
 | `200` | The idempotency key was already used for this exact transfer; the original transaction is returned |
-| `400` | Invalid input, insufficient balance, or an account that is not active |
+| `400` | Invalid input, insufficient balance, an account that is not active, or over a transfer limit |
 | `403` | The sending account belongs to someone else |
 | `404` | Account not found |
 | `409` | The idempotency key was already used for a different transfer |
@@ -214,6 +219,9 @@ Content-Type: application/json
 | `GET` | `/admin/ledger` | Every ledger entry |
 | `GET` | `/admin/transactions` | Every transaction |
 | `GET` | `/admin/blocked-tokens` | Revoked sessions |
+| `GET` | `/admin/approvals` | Transfers awaiting approval, oldest first, with the customer who asked |
+| `POST` | `/admin/approvals/:transactionId/approve` | Run the transfer now (same checks as any transfer). `409` if already reviewed |
+| `POST` | `/admin/approvals/:transactionId/reject` | Cancel it with `{ "reason" }`; no money moves |
 | `POST` | `/admin/transactions/:transactionId/reverse` | Reverse a completed transfer. Body: `{ "reason", "idempotencyKey" }`. `201` reversed, `200` key replayed, `400` receiver can no longer cover it or the transaction is itself a reversal, `409` already reversed |
 
 ---
@@ -247,6 +255,7 @@ npm run dev            # API on http://localhost:3000
 | `DEMO_EMAIL`, `DEMO_PASSWORD` | Optional | Enables the demo login; the demo user is created and funded once |
 | `EMAIL_USER` + `EMAIL_PASS`, or `CLIENT_ID` / `CLIENT_SECRET` / `REFRESH_TOKEN` | Optional | Gmail credentials for notification emails (app password or OAuth2) |
 | `PORT` | Optional | Defaults to `3000` |
+| `MAX_TRANSFER_RUPEES`, `DAILY_TRANSFER_LIMIT_RUPEES`, `APPROVAL_THRESHOLD_RUPEES` | Optional | Transfer limits in whole rupees. Default `100000`, `100000` and `25000` |
 | `TRUST_PROXY_HOPS` | Optional | Number of proxies in front of the app, so rate limits see the real client IP. Defaults to `1` |
 
 ### Frontend
@@ -262,7 +271,7 @@ Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explo
 
 ### Tests
 
-The backend has 94 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
+The backend has 110 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
 
 - **Transfers:** balances, ledger entries, validation, ownership, inactive accounts, authentication
 - **Concurrency:** parallel transfers never overspend, parallel fundings all apply
@@ -272,6 +281,7 @@ The backend has 94 API tests (Jest + Supertest) that run against a real MongoDB 
 - **Ledger:** entries cannot be updated or deleted, and every transaction has a matching debit and credit
 - **Money:** fractional paise are rejected, many small transfers add up exactly, and the paise migration converts old data once and only once
 - **Security:** query-operator injection, cookie flags, cookie-only sessions, security headers, JSON errors without stack traces, and rate limits
+- **Limits and approvals:** per-transfer and daily limits (also under parallel requests, and resetting at midnight IST), transfers awaiting approval, approve/reject exactly once even when admins race, approval re-checking balance and account status
 - **Reversals:** money moves back once even with 5 parallel requests, idempotent replays, no reversing a reversal, a receiver who already spent the money, frozen accounts, the system reserve
 
 ```bash
@@ -318,7 +328,6 @@ Set the environment variables from the table above in the Render dashboard. [`re
 
 ## Roadmap
 
-- Daily transfer limits and maker-checker approval for large transfers
 - Balance snapshots and a reconciliation report
 - OpenAPI (Swagger) documentation
 

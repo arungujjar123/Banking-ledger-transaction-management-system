@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useApprovals } from '../../hooks/queries';
 import { cn } from '../../utils/cn';
 import {
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
   BookOpenCheck,
   ShieldAlert,
   Receipt,
+  ClipboardCheck,
 } from 'lucide-react';
 
 const userNavItems = [
@@ -23,6 +25,7 @@ const adminNavItems = [
   { label: 'Users', path: '/admin/users', icon: Users },
   { label: 'Ledger', path: '/admin/ledger', icon: BookOpenCheck },
   { label: 'Transactions', path: '/admin/transactions', icon: Receipt },
+  { label: 'Approvals', path: '/admin/approvals', icon: ClipboardCheck, showsApprovalCount: true },
   { label: 'Blocked tokens', path: '/admin/blocked-tokens', icon: ShieldAlert },
 ];
 
@@ -30,6 +33,7 @@ const adminNavItems = [
 export const SidebarNav = ({ onNavigate }) => {
   const { role } = useAuth();
   const navItems = role === 'admin' ? adminNavItems : userNavItems;
+  const { data: approvals = [] } = useApprovals({ enabled: role === 'admin' });
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-1">
@@ -53,6 +57,14 @@ export const SidebarNav = ({ onNavigate }) => {
           >
             <Icon className="w-[18px] h-[18px] shrink-0" aria-hidden="true" />
             <span>{item.label}</span>
+            {item.showsApprovalCount && approvals.length > 0 && (
+              <span
+                className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-warn-soft text-warn text-xs font-semibold flex items-center justify-center"
+                aria-label={`${approvals.length} waiting`}
+              >
+                {approvals.length}
+              </span>
+            )}
           </NavLink>
         );
       })}

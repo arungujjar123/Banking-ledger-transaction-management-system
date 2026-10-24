@@ -20,31 +20,84 @@ function findByIdempotencyKey(idempotencyKey) {
 }
 
 /**
+ * - Lock the sender and run every check a transfer needs, inside the caller's MongoDB
+ *   transaction. Throws a TransferError when the transfer must not happen.
+ * - Locking: writing to the sender's account document makes concurrent transfers from the same
+ *   account conflict. MongoDB aborts the loser with a WriteConflict and withTransaction retries
+ *   it, so it re-reads the balance after the winner commits. Without this write, two transfers
+ *   insert different ledger rows, never conflict, and both pass the balance check (write skew),
+ *   letting the balance go negative.
+ */
+async function lockAndCheck(session, {
+    fromAccountId,
+    toAccountId,
+    amount,
+    ownerId,
+    allowNegative = false,
+    requireActiveSender = true,
+    requireActiveReceiver = true,
+    afterLock
+}) {
+    const sender = await accountModel.findOneAndUpdate(
+        { _id: fromAccountId, ...(requireActiveSender && { status: "ACTIVE" }), ...(ownerId && { user: ownerId }) },
+        { $inc: { lockVersion: 1 } },
+        { session, new: true }
+    )
+
+    if (!sender) {
+        throw requireActiveSender
+            ? new TransferError(400, "The sending account is not active")
+            : new TransferError(404, "Sender account not found")
+    }
+
+    if (afterLock) {
+        await afterLock(session)
+    }
+
+    const receiver = await accountModel.findById(toAccountId).session(session)
+
+    if (!receiver) {
+        throw new TransferError(404, "Receiver account not found")
+    }
+
+    if (requireActiveReceiver && receiver.status !== "ACTIVE") {
+        throw new TransferError(400, "The receiving account is not active")
+    }
+
+    if (!allowNegative) {
+        const balance = await sender.getBalance(session)
+
+        if (balance < amount) {
+            throw new TransferError(400, `Insufficient balance. Available balance is ${formatRupees(balance)}`)
+        }
+    }
+}
+
+// The double entry: one DEBIT and one CREDIT of the same amount
+function writeLedgerEntries(session, { _id, fromAccount, toAccount, amount }) {
+    return ledgerModel.create([
+        { account: fromAccount, amount, transaction: _id, type: "DEBIT" },
+        { account: toAccount, amount, transaction: _id, type: "CREDIT" }
+    ], { session, ordered: true })
+}
+
+/**
  * - Move money between two accounts as one atomic double-entry transfer
  * - Everything happens inside one MongoDB transaction: either the transaction record and
  *   both ledger entries are written, or nothing is
  * - Replaying an idempotency key returns the original transaction instead of moving money again
  *
- * Options:
+ * Options (besides those of lockAndCheck):
  * - ownerId: when set, the sender account must belong to this user
  * - allowNegative: skip the balance check (system reserve account funding users)
  * - requireActiveSender / requireActiveReceiver: reject accounts that are not ACTIVE
  * - fields: extra fields stored on the transaction record
  * - afterLock(session): runs inside the MongoDB transaction right after the sender is locked,
  *   before the other checks; throwing aborts everything
+ * - awaitApproval: record the transfer as AWAITING_APPROVAL without moving money; an admin
+ *   completes it later (see services/approval.service.js)
  */
-async function executeTransfer({
-    fromAccountId,
-    toAccountId,
-    amount,
-    idempotencyKey,
-    ownerId,
-    allowNegative = false,
-    requireActiveSender = true,
-    requireActiveReceiver = true,
-    fields = {},
-    afterLock
-}) {
+async function executeTransfer({ idempotencyKey, fields = {}, awaitApproval = false, ...transfer }) {
     const existing = await findByIdempotencyKey(idempotencyKey)
     if (existing) {
         return { transaction: existing, replayed: true }
@@ -58,58 +111,21 @@ async function executeTransfer({
         // withTransaction commits on success, aborts on any error, and retries the whole
         // callback on transient errors such as write conflicts
         await session.withTransaction(async () => {
-            // Lock the sender: writing to its account document makes concurrent transfers from
-            // the same account conflict. MongoDB aborts the loser with a WriteConflict and
-            // withTransaction retries it, so it re-reads the balance after the winner commits.
-            // Without this write, two transfers insert different ledger rows, never conflict,
-            // and both pass the balance check (write skew), letting the balance go negative.
-            const sender = await accountModel.findOneAndUpdate(
-                { _id: fromAccountId, ...(requireActiveSender && { status: "ACTIVE" }), ...(ownerId && { user: ownerId }) },
-                { $inc: { lockVersion: 1 } },
-                { session, new: true }
-            )
+            await lockAndCheck(session, transfer)
 
-            if (!sender) {
-                throw requireActiveSender
-                    ? new TransferError(400, "The sending account is not active")
-                    : new TransferError(404, "Sender account not found")
-            }
-
-            if (afterLock) {
-                await afterLock(session)
-            }
-
-            const receiver = await accountModel.findById(toAccountId).session(session)
-
-            if (!receiver) {
-                throw new TransferError(404, "Receiver account not found")
-            }
-
-            if (requireActiveReceiver && receiver.status !== "ACTIVE") {
-                throw new TransferError(400, "The receiving account is not active")
-            }
-
-            if (!allowNegative) {
-                const balance = await sender.getBalance(session)
-
-                if (balance < amount) {
-                    throw new TransferError(400, `Insufficient balance. Available balance is ${formatRupees(balance)}`)
-                }
-            }
-
-            [ transaction ] = await transactionModel.create([ {
+            const [ created ] = await transactionModel.create([ {
                 ...fields,
-                fromAccount: fromAccountId,
-                toAccount: toAccountId,
-                amount,
+                fromAccount: transfer.fromAccountId,
+                toAccount: transfer.toAccountId,
+                amount: transfer.amount,
                 idempotencyKey,
-                status: "COMPLETED"
+                status: awaitApproval ? "AWAITING_APPROVAL" : "COMPLETED"
             } ], { session })
+            transaction = created
 
-            await ledgerModel.create([
-                { account: fromAccountId, amount, transaction: transaction._id, type: "DEBIT" },
-                { account: toAccountId, amount, transaction: transaction._id, type: "CREDIT" }
-            ], { session, ordered: true })
+            if (!awaitApproval) {
+                await writeLedgerEntries(session, transaction)
+            }
         })
 
         return { transaction: transaction.toObject(), replayed: false }
@@ -131,5 +147,7 @@ async function executeTransfer({
 module.exports = {
     TransferError,
     executeTransfer,
-    findByIdempotencyKey
+    findByIdempotencyKey,
+    lockAndCheck,
+    writeLedgerEntries
 }
