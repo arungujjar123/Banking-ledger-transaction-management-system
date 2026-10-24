@@ -98,6 +98,9 @@ export const adminService = {
   getAllTransactions: () => api.get('/admin/transactions').then((res) => res.data.transactions || []),
 
   updateUserStatus: (userId, status) => api.patch(`/admin/users/${userId}/status`, { status }).then((res) => res.data),
+
+  reverseTransaction: ({ transactionId, reason, idempotencyKey }) =>
+    api.post(`/admin/transactions/${transactionId}/reverse`, { reason, idempotencyKey }).then((res) => res.data),
 };
 
 export default api;

@@ -16,6 +16,12 @@ router.get('/transactions', authMiddleware.authSystemUserMiddleware, adminContro
 // GET /api/admin/blocked-tokens
 router.get('/blocked-tokens', authMiddleware.authSystemUserMiddleware, adminController.getBlockedTokensController);
 
+/**
+ * - POST /api/admin/transactions/:transactionId/reverse
+ * - Reverse a completed transfer with a new, opposite transfer
+ */
+router.post('/transactions/:transactionId/reverse', authMiddleware.authSystemUserMiddleware, adminController.reverseTransactionController);
+
 // PATCH /api/admin/users/:userId/status
 router.patch('/users/:userId/status', authMiddleware.authSystemUserMiddleware, adminController.updateUserStatusController);
 

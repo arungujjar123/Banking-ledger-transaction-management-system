@@ -39,6 +39,7 @@ A full-stack double-entry banking ledger. Balances are derived from an immutable
 - **Recipient confirmation.** Before sending, the app looks up the destination account and shows a masked owner name ("Rahul S."), then asks for confirmation on a review screen.
 - **Role-based admin console.** Admins approve, freeze and unfreeze accounts, fund users from a system reserve, and audit the global ledger, every transaction and revoked sessions.
 - **Revocable sessions.** JWTs are blacklisted on logout (with a TTL index that cleans them up), so a logged-out token can never be reused.
+- **Reversals, not edits.** An admin undoes a transfer by writing a new, opposite transfer linked to the original, which is marked `REVERSED`. It happens atomically, at most once (a unique index stops even parallel requests), and only if the receiver still has the money.
 - **Hardened auth.** The session lives in an `httpOnly`, `sameSite=strict`, `secure` cookie that page scripts cannot read; logins are rate limited per account and per IP; request data can never act as a MongoDB query operator; `helmet` sets a strict Content-Security-Policy.
 - **Polished UI.** Light and dark themes (following the OS by default), responsive layout with a mobile navigation drawer, loading, empty and error states on every page.
 
@@ -104,6 +105,7 @@ The logic lives in [`backend/src/services/transfer.service.js`](backend-ledger/b
 - Approve pending accounts, freeze and unfreeze active ones, search and filter users by status
 - Fund any account from the system reserve (recorded as a normal double-entry transfer)
 - Global ledger, every transaction with its idempotency key, and the list of revoked sessions
+- Reverse a completed transfer with a recorded reason; reversal rows link to the transfer they undo, and users see "Reversal from" in their ledger
 
 ---
 
@@ -135,7 +137,7 @@ backend-ledger/
 │           ├── transfer.service.js Atomic, idempotent transfers with sender locking
 │           ├── seed.service.js     Admin and demo user seeding
 │           └── email.service.js
-│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security)
+│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security, reversals)
 └── frontend/                       React + Vite client
     └── src/
         ├── pages/                  User and admin pages, login, register, 404
@@ -212,6 +214,7 @@ Content-Type: application/json
 | `GET` | `/admin/ledger` | Every ledger entry |
 | `GET` | `/admin/transactions` | Every transaction |
 | `GET` | `/admin/blocked-tokens` | Revoked sessions |
+| `POST` | `/admin/transactions/:transactionId/reverse` | Reverse a completed transfer. Body: `{ "reason", "idempotencyKey" }`. `201` reversed, `200` key replayed, `400` receiver can no longer cover it or the transaction is itself a reversal, `409` already reversed |
 
 ---
 
@@ -259,7 +262,7 @@ Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explo
 
 ### Tests
 
-The backend has 78 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
+The backend has 94 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
 
 - **Transfers:** balances, ledger entries, validation, ownership, inactive accounts, authentication
 - **Concurrency:** parallel transfers never overspend, parallel fundings all apply
@@ -269,6 +272,7 @@ The backend has 78 API tests (Jest + Supertest) that run against a real MongoDB 
 - **Ledger:** entries cannot be updated or deleted, and every transaction has a matching debit and credit
 - **Money:** fractional paise are rejected, many small transfers add up exactly, and the paise migration converts old data once and only once
 - **Security:** query-operator injection, cookie flags, cookie-only sessions, security headers, JSON errors without stack traces, and rate limits
+- **Reversals:** money moves back once even with 5 parallel requests, idempotent replays, no reversing a reversal, a receiver who already spent the money, frozen accounts, the system reserve
 
 ```bash
 cd backend-ledger/backend
@@ -314,7 +318,6 @@ Set the environment variables from the table above in the Render dashboard. [`re
 
 ## Roadmap
 
-- Transaction reversal (a new, opposite transfer that references the original)
 - Daily transfer limits and maker-checker approval for large transfers
 - Balance snapshots and a reconciliation report
 - OpenAPI (Swagger) documentation

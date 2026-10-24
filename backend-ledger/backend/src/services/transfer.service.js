@@ -28,7 +28,10 @@ function findByIdempotencyKey(idempotencyKey) {
  * Options:
  * - ownerId: when set, the sender account must belong to this user
  * - allowNegative: skip the balance check (system reserve account funding users)
- * - requireActiveReceiver: reject receivers that are not ACTIVE
+ * - requireActiveSender / requireActiveReceiver: reject accounts that are not ACTIVE
+ * - fields: extra fields stored on the transaction record
+ * - afterLock(session): runs inside the MongoDB transaction right after the sender is locked,
+ *   before the other checks; throwing aborts everything
  */
 async function executeTransfer({
     fromAccountId,
@@ -37,7 +40,10 @@ async function executeTransfer({
     idempotencyKey,
     ownerId,
     allowNegative = false,
-    requireActiveReceiver = true
+    requireActiveSender = true,
+    requireActiveReceiver = true,
+    fields = {},
+    afterLock
 }) {
     const existing = await findByIdempotencyKey(idempotencyKey)
     if (existing) {
@@ -58,13 +64,19 @@ async function executeTransfer({
             // Without this write, two transfers insert different ledger rows, never conflict,
             // and both pass the balance check (write skew), letting the balance go negative.
             const sender = await accountModel.findOneAndUpdate(
-                { _id: fromAccountId, status: "ACTIVE", ...(ownerId && { user: ownerId }) },
+                { _id: fromAccountId, ...(requireActiveSender && { status: "ACTIVE" }), ...(ownerId && { user: ownerId }) },
                 { $inc: { lockVersion: 1 } },
                 { session, new: true }
             )
 
             if (!sender) {
-                throw new TransferError(400, "The sending account is not active")
+                throw requireActiveSender
+                    ? new TransferError(400, "The sending account is not active")
+                    : new TransferError(404, "Sender account not found")
+            }
+
+            if (afterLock) {
+                await afterLock(session)
             }
 
             const receiver = await accountModel.findById(toAccountId).session(session)
@@ -86,6 +98,7 @@ async function executeTransfer({
             }
 
             [ transaction ] = await transactionModel.create([ {
+                ...fields,
                 fromAccount: fromAccountId,
                 toAccount: toAccountId,
                 amount,
@@ -117,5 +130,6 @@ async function executeTransfer({
 
 module.exports = {
     TransferError,
-    executeTransfer
+    executeTransfer,
+    findByIdempotencyKey
 }

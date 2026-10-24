@@ -22,6 +22,9 @@ const TypeIcon = ({ type, className }) =>
 
 // User ledger entries carry the other side of the transfer; admin entries only have the transaction
 const describeEntry = (e) => {
+  if (e.counterpartyAccount && e.reversalOf) {
+    return { label: e.type === 'CREDIT' ? 'Reversal from' : 'Reversed to', id: e.counterpartyAccount };
+  }
   if (e.counterpartyAccount) {
     return { label: e.type === 'CREDIT' ? 'Received from' : 'Sent to', id: e.counterpartyAccount };
   }
@@ -129,7 +132,7 @@ export const LedgerTable = ({
 
   const query = search.toLowerCase();
   const filteredEntries = entries.filter((item) => {
-    const matchesSearch = [item.account, item.transaction, item.counterpartyAccount, item._id].some((value) =>
+    const matchesSearch = [item.account, item.transaction, item.counterpartyAccount, item.reversalOf, item._id].some((value) =>
       (value || '').toLowerCase().includes(query)
     );
 

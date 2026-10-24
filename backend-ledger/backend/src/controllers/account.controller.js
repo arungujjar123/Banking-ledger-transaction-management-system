@@ -51,7 +51,7 @@ async function getUserLedgerController(req, res) {
         const accountIds = userAccounts.map(a => a._id);
         const entries = await ledgerModel.find({ account: mongoose.trusted({ $in: accountIds }) })
             .sort({ _id: -1 })
-            .populate("transaction", "fromAccount toAccount")
+            .populate("transaction", "fromAccount toAccount reversalOf")
             .lean();
 
         // Keep `transaction` as an ID and add the other side of the transfer, so the UI
@@ -61,7 +61,9 @@ async function getUserLedgerController(req, res) {
             return {
                 ...entry,
                 transaction: txn?._id ?? txn,
-                counterpartyAccount: entry.type === "DEBIT" ? txn?.toAccount : txn?.fromAccount
+                counterpartyAccount: entry.type === "DEBIT" ? txn?.toAccount : txn?.fromAccount,
+                // Set when this entry belongs to a reversal, so the UI can say why money moved
+                reversalOf: txn?.reversalOf
             };
         });
 

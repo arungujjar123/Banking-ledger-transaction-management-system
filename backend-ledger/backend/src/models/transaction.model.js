@@ -37,10 +37,31 @@ const transactionSchema = new mongoose.Schema({
         required: [ true, "Idempotency Key is required for creating a transaction" ],
         index: true,
         unique: true
+    },
+    // Set only on reversals: the transaction this one undoes, why, and which admin did it
+    reversalOf: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "transaction"
+    },
+    reason: {
+        type: String,
+        trim: true,
+        maxlength: [ 500, "Reason must be at most 500 characters" ]
+    },
+    reversedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user"
     }
 }, {
     timestamps: true
 })
+
+// A transaction can be reversed at most once: even if two reversals race past every other
+// check, the database lets only one of them commit
+transactionSchema.index(
+    { reversalOf: 1 },
+    { unique: true, partialFilterExpression: { reversalOf: { $exists: true } } }
+)
 
 const transactionModel = mongoose.model("transaction", transactionSchema)
 
