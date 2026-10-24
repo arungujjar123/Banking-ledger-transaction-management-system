@@ -17,6 +17,8 @@ const ledgerModel = require("../src/models/ledger.model")
 const { executeTransfer } = require("../src/services/transfer.service")
 
 const api = () => request(app)
+// Keeps cookies between requests, like a browser
+const agent = () => request.agent(app)
 
 /**
  * - Connect to the test database. Tests drop this database, so refuse anything
@@ -110,6 +112,7 @@ async function ledgerIsBalanced() {
 
 module.exports = {
     api,
+    agent,
     connectTestDb,
     resetDb,
     disconnectTestDb,

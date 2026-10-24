@@ -5,6 +5,8 @@ import { useToast } from './ToastContext';
 
 const AuthContext = createContext(null);
 
+// Only the signed-in user's name and role are kept here, for the first paint; the session
+// itself is the httpOnly cookie. 'token' is removed because older versions stored it here.
 const clearStoredSession = () => {
   localStorage.removeItem('user_details');
   localStorage.removeItem('token');
@@ -46,6 +48,7 @@ export const AuthProvider = ({ children }) => {
   }, [expireSession]);
 
   useEffect(() => {
+    localStorage.removeItem('token');
     const savedUser = localStorage.getItem('user_details');
 
     if (!savedUser) {

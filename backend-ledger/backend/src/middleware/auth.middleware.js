@@ -2,95 +2,56 @@ const userModel = require("../models/user.model")
 const jwt = require("jsonwebtoken")
 const tokenBlackListModel = require("../models/blackList.model")
 
+// The browser sends the httpOnly cookie; API clients may send an Authorization: Bearer header
+const getRequestToken = (req) => req.cookies.token || req.headers.authorization?.split(" ")[ 1 ]
 
-// ye check kar rha hai token ko cookies mein 
-async function authMiddleware(req, res, next) {
+/**
+ * - Resolve the user behind the request's token, or the error to send back
+ */
+async function authenticate(req, { systemUser = false } = {}) {
+    const token = getRequestToken(req)
 
-    const token = req.cookies.token || req.headers.authorization?.split(" ")[ 1 ]
-
-    if (!token) {
-        return res.status(401).json({
-            message: "Unauthorized access, token is missing"
-        })
+    if (typeof token !== "string" || !token) {
+        return { status: 401, message: "Unauthorized access, token is missing" }
     }
 
-    const isBlacklisted = await tokenBlackListModel.findOne({ token })
-
-    if (isBlacklisted) {
-        return res.status(401).json({
-            message: "Unauthorized access, token is invalid"
-        })
-    }
-
+    let decoded
     try {
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
-        const user = await userModel.findById(decoded.userId)
-
-        if (!user) {
-            return res.status(401).json({
-                message: "Unauthorized access, user not found"
-            })
-        }
-
-        req.user = user
-
-        return next()
-
-    } catch (err) {
-        return res.status(401).json({
-            message: "Unauthorized access, token is invalid"
-        })
+        decoded = jwt.verify(token, process.env.JWT_SECRET)
+    } catch {
+        return { status: 401, message: "Unauthorized access, token is invalid" }
     }
+
+    if (await tokenBlackListModel.exists({ token })) {
+        return { status: 401, message: "Unauthorized access, token is invalid" }
+    }
+
+    const user = await userModel.findById(decoded.userId).select(systemUser ? "+systemUser" : "")
+
+    if (!user) {
+        return { status: 401, message: "Unauthorized access, user not found" }
+    }
+
+    if (systemUser && !user.systemUser) {
+        return { status: 403, message: "Forbidden access, not a system user" }
+    }
+
+    return { user }
 }
-async function authSystemUserMiddleware(req, res, next) {
 
-    const token = req.cookies.token || req.headers.authorization?.split(" ")[ 1 ]
+const requireAuth = (options) => async (req, res, next) => {
+    const { user, status, message } = await authenticate(req, options)
 
-    if (!token) {
-        return res.status(401).json({
-            message: "Unauthorized access, token is missing"
-        })
+    if (!user) {
+        return res.status(status).json({ message })
     }
 
-    const isBlacklisted = await tokenBlackListModel.findOne({ token })
-
-    if (isBlacklisted) {
-        return res.status(401).json({
-            message: "Unauthorized access, token is invalid"
-        })
-    }
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
-        const user = await userModel.findById(decoded.userId).select("+systemUser")
-        if (!user) {
-            return res.status(401).json({
-                message: "Unauthorized access, user not found"
-            })
-        }
-
-        if (!user.systemUser) {
-            return res.status(403).json({
-                message: "Forbidden access, not a system user"
-            })
-        }
-
-        req.user = user
-
-        return next()
-    }
-    catch (err) {
-        return res.status(401).json({
-            message: "Unauthorized access, token is invalid"
-        })
-    }
-
+    req.user = user
+    return next()
 }
 
 module.exports = {
-    authMiddleware,
-    authSystemUserMiddleware
+    getRequestToken,
+    authMiddleware: requireAuth(),
+    authSystemUserMiddleware: requireAuth({ systemUser: true })
 }

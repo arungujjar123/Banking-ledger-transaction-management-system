@@ -1,16 +1,40 @@
 const userModel = require("../models/user.model")
 const accountModel = require("../models/account.model")
 const jwt = require("jsonwebtoken")
+const bcrypt = require("bcryptjs")
 const emailService = require("../services/email.service")
 const tokenBlackListModel = require("../models/blackList.model")
+const { getRequestToken } = require("../middleware/auth.middleware")
+
+const SESSION_DAYS = 3
+const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+
+// Compared against when the email is unknown, so a login takes as long whether or not the
+// account exists (response time must not reveal which emails are registered)
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("not-a-real-password", 10)
+
+const isString = (value) => typeof value === "string"
 
 /**
- * - Issue a JWT for the user and send it as cookie + response body
+ * - Session cookie: httpOnly (page scripts cannot read it, so an XSS bug cannot steal it),
+ *   sameSite strict (other sites cannot make the browser send it, which blocks CSRF), and
+ *   secure whenever the request arrived over HTTPS
  */
-function sendAuthResponse(res, user, statusCode) {
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "3d" })
+const sessionCookieOptions = (req) => ({
+    httpOnly: true,
+    sameSite: "strict",
+    secure: req.secure,
+    path: "/"
+})
 
-    res.cookie("token", token)
+/**
+ * - Issue a JWT for the user and send it as cookie + response body (the body copy is for
+ *   API clients; the web app relies on the cookie alone)
+ */
+function sendAuthResponse(req, res, user, statusCode) {
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` })
+
+    res.cookie("token", token, { ...sessionCookieOptions(req), maxAge: SESSION_DAYS * 24 * 60 * 60 * 1000 })
 
     return res.status(statusCode).json({
         user: {
@@ -28,7 +52,25 @@ function sendAuthResponse(res, user, statusCode) {
 * - POST /api/auth/register
 */
 async function userRegisterController(req, res) {
-    const { email, password, name } = req.body
+    const { password } = req.body
+    // Only plain strings get near the database: an object such as { "$ne": null } is rejected
+    if (!isString(req.body.name) || !isString(req.body.email) || !isString(password)) {
+        return res.status(400).json({ message: "name, email and password are required" })
+    }
+
+    const name = req.body.name.trim()
+    const email = req.body.email.trim().toLowerCase()
+
+    if (!name || name.length > 100) {
+        return res.status(400).json({ message: "Name must be between 1 and 100 characters" })
+    }
+    if (!EMAIL_PATTERN.test(email)) {
+        return res.status(400).json({ message: "Please enter a valid email address" })
+    }
+    // bcrypt only uses the first 72 bytes of a password
+    if (password.length < 6 || password.length > 72) {
+        return res.status(400).json({ message: "Password must be between 6 and 72 characters" })
+    }
 
     const isExists = await userModel.findOne({
         email: email
@@ -51,9 +93,11 @@ async function userRegisterController(req, res) {
         status: "PENDING"
     })
 
-    sendAuthResponse(res, user, 201)
+    sendAuthResponse(req, res, user, 201)
 
-    await emailService.sendRegistrationEmail(user.email, user.name)
+    // The welcome email never delays or fails the registration
+    emailService.sendRegistrationEmail(user.email, user.name)
+        .catch((err) => console.error("Registration email failed:", err.message))
 }
 
 /**
@@ -63,16 +107,16 @@ async function userRegisterController(req, res) {
 
 async function userLoginController(req, res) {
     const { email, password } = req.body
-    
-    const user = await userModel.findOne({ email }).select("+password +systemUser")
 
-    if (!user) {
-        return res.status(401).json({
-            message: "Email or password is INVALID"
-        })
+    if (!isString(email) || !isString(password) || !email.trim() || !password) {
+        return res.status(400).json({ message: "Email and password are required" })
     }
 
-    const isValidPassword = await user.comparePassword(password)
+    const user = await userModel.findOne({ email: email.trim().toLowerCase() }).select("+password +systemUser")
+
+    const isValidPassword = user
+        ? await user.comparePassword(password)
+        : await bcrypt.compare(password, DUMMY_PASSWORD_HASH).then(() => false)
 
     if (!isValidPassword) {
         return res.status(401).json({
@@ -80,7 +124,7 @@ async function userLoginController(req, res) {
         })
     }
 
-    return sendAuthResponse(res, user, 200)
+    return sendAuthResponse(req, res, user, 200)
 }
 
 /**
@@ -100,7 +144,7 @@ async function demoLoginController(req, res) {
         })
     }
 
-    return sendAuthResponse(res, user, 200)
+    return sendAuthResponse(req, res, user, 200)
 }
 
 /**
@@ -120,24 +164,34 @@ async function getCurrentUserController(req, res) {
     })
 }
 
+function isValidToken(token) {
+    try {
+        jwt.verify(token, process.env.JWT_SECRET)
+        return true
+    } catch {
+        return false
+    }
+}
+
 /**
  * - User Logout Controller
  * - POST /api/auth/logout
   */
 async function userLogoutController(req, res) {
-    const token = req.cookies.token || req.headers.authorization?.split(" ")[ 1 ]
+    const token = getRequestToken(req)
 
-    if (!token) {
-        return res.status(200).json({
-            message: "User logged out successfully"
-        })
+    // Only tokens this server issued (and that have not expired) are worth revoking;
+    // anything else is ignored, so the blacklist cannot be filled with junk
+    if (isString(token) && isValidToken(token)) {
+        try {
+            await tokenBlackListModel.create({ token })
+        } catch (err) {
+            // Already revoked by an earlier logout
+            if (err.code !== 11000) throw err
+        }
     }
 
-    await tokenBlackListModel.create({
-        token: token
-    })
-
-    res.clearCookie("token")
+    res.clearCookie("token", sessionCookieOptions(req))
 
     res.status(200).json({
         message: "User logged out successfully"

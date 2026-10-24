@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const accountModel = require("../models/account.model");
 const maskName = require("../utils/maskName");
 const ledgerModel = require("../models/ledger.model");
@@ -48,7 +49,7 @@ async function getUserLedgerController(req, res) {
     try {
         const userAccounts = await accountModel.find({ user: req.user._id });
         const accountIds = userAccounts.map(a => a._id);
-        const entries = await ledgerModel.find({ account: { $in: accountIds } })
+        const entries = await ledgerModel.find({ account: mongoose.trusted({ $in: accountIds }) })
             .sort({ _id: -1 })
             .populate("transaction", "fromAccount toAccount")
             .lean();
