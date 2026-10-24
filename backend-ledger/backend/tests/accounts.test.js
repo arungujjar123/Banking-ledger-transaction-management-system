@@ -11,7 +11,7 @@ beforeEach(async () => {
     admin = await h.createAdmin()
     alice = await h.createUser({ name: "Alice Rao", accounts: 2 })
     bob = await h.createUser({ name: "Bob Kumar Das" })
-    await h.fund(admin, alice.accountIds[0], 500)
+    await h.fund(admin, alice.accountIds[0], 50000)
 })
 
 const as = (user, req) => req.set("Authorization", `Bearer ${user.token}`)
@@ -21,7 +21,7 @@ describe("balances", () => {
         const res = await as(alice, h.api().get(`/api/accounts/balance/${alice.accountIds[0]}`))
 
         expect(res.status).toBe(200)
-        expect(res.body.balance).toBe(500)
+        expect(res.body.balance).toBe(50000)
     })
 
     test("other users cannot read it", async () => {
@@ -51,7 +51,7 @@ describe("GET /api/accounts/lookup/:accountId", () => {
 
 describe("GET /api/accounts/ledger", () => {
     test("each entry carries the other side of its transfer", async () => {
-        await h.transfer(alice.token, { fromAccount: alice.accountIds[0], toAccount: bob.accountIds[0], amount: 120 })
+        await h.transfer(alice.token, { fromAccount: alice.accountIds[0], toAccount: bob.accountIds[0], amount: 12000 })
 
         const res = await as(alice, h.api().get("/api/accounts/ledger"))
         const debit = res.body.entries.find((e) => e.type === "DEBIT")

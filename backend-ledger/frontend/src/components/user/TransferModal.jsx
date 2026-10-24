@@ -6,10 +6,9 @@ import { Input, Select } from '../ui/Input';
 import { generateIdempotencyKey } from '../../services/api';
 import { useAccountBalance, useAccountLookup, useCreateTransfer } from '../../hooks/queries';
 import { useToast } from '../../context/ToastContext';
-import { accountLabel, formatCurrency, shortId } from '../../utils/format';
+import { accountLabel, formatCurrency, parseRupeesToPaise, shortId } from '../../utils/format';
 
 const ACCOUNT_ID_PATTERN = /^[a-f\d]{24}$/i;
-const AMOUNT_PATTERN = /^\d+(\.\d{1,2})?$/;
 
 // Inline status under the "To account" field: who the money is going to, or why it can't go there
 const RecipientStatus = ({ toAccount, fromAccount, lookup }) => {
@@ -98,12 +97,13 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, defaultFromAccount]);
 
-  const numericAmount = Number(amount);
+  // Amount in integer paise, or null while the input is not a valid rupee amount
+  const paise = parseRupeesToPaise(amount);
   const amountError = !amount
     ? null
-    : !AMOUNT_PATTERN.test(amount) || numericAmount <= 0
+    : !paise
       ? 'Enter an amount greater than 0 with at most 2 decimal places.'
-      : typeof available === 'number' && numericAmount > available
+      : typeof available === 'number' && paise > available
         ? `That is more than the ${formatCurrency(available)} available in this account.`
         : null;
 
@@ -118,7 +118,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
     e.preventDefault();
     if (!canContinue) return;
 
-    const details = `${fromAccount}|${recipientId}|${numericAmount}`;
+    const details = `${fromAccount}|${recipientId}|${paise}`;
     if (idempotencyRef.current.details !== details) {
       idempotencyRef.current = { key: generateIdempotencyKey(), details };
     }
@@ -130,7 +130,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
       const res = await transfer.mutateAsync({
         fromAccount,
         toAccount: recipientId,
-        amount: numericAmount,
+        amount: paise,
         idempotencyKey: idempotencyRef.current.key,
       });
       setResult(res);
@@ -212,7 +212,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
         <div className="space-y-5">
           <div className="text-center py-2">
             <div className="text-[13px] text-muted">You are sending</div>
-            <div className="text-[34px] font-bold tracking-tight tabular-nums text-fg mt-1">{formatCurrency(numericAmount)}</div>
+            <div className="text-[34px] font-bold tracking-tight tabular-nums text-fg mt-1">{formatCurrency(paise)}</div>
           </div>
 
           <div className="rounded-control border border-border px-4">
@@ -243,7 +243,7 @@ export const TransferModal = ({ isOpen, onClose, userAccounts = [], defaultFromA
             <div className="mx-auto h-12 w-12 rounded-full bg-accent-soft text-accent-fg flex items-center justify-center">
               <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
             </div>
-            <div className="text-[30px] font-bold tracking-tight tabular-nums text-fg mt-3">{formatCurrency(numericAmount)}</div>
+            <div className="text-[30px] font-bold tracking-tight tabular-nums text-fg mt-3">{formatCurrency(paise)}</div>
             <p className="text-muted mt-1">
               sent to <span className="font-semibold text-fg">{recipientName}</span>
             </p>

@@ -2,6 +2,7 @@ const mongoose = require("mongoose")
 const accountModel = require("../models/account.model")
 const transactionModel = require("../models/transaction.model")
 const ledgerModel = require("../models/ledger.model")
+const { formatRupees } = require("../utils/money")
 
 /**
  * - An expected business failure (insufficient funds, inactive account, ...)
@@ -80,7 +81,7 @@ async function executeTransfer({
                 const balance = await sender.getBalance(session)
 
                 if (balance < amount) {
-                    throw new TransferError(400, `Insufficient balance. Available balance is ${balance}`)
+                    throw new TransferError(400, `Insufficient balance. Available balance is ${formatRupees(balance)}`)
                 }
             }
 

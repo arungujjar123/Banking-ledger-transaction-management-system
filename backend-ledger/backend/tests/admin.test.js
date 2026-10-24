@@ -51,29 +51,29 @@ describe("POST /api/transactions/system/initial-funds", () => {
         h.api().post("/api/transactions/system/initial-funds").set("Authorization", `Bearer ${token}`).send({ idempotencyKey: h.randomUUID(), ...body })
 
     test("funds an account from the reserve, which may go negative", async () => {
-        const res = await fund(admin.token, { toAccount: alice.accountIds[0], amount: 2500.5 })
+        const res = await fund(admin.token, { toAccount: alice.accountIds[0], amount: 250050 })
 
         expect(res.status).toBe(201)
-        expect(await h.balanceOf(alice.accountIds[0])).toBe(2500.5)
-        expect(await h.balanceOf(admin.accountIds[0])).toBe(-2500.5)
+        expect(await h.balanceOf(alice.accountIds[0])).toBe(250050)
+        expect(await h.balanceOf(admin.accountIds[0])).toBe(-250050)
     })
 
     test("replaying the key does not credit twice", async () => {
         const idempotencyKey = h.randomUUID()
-        await fund(admin.token, { toAccount: alice.accountIds[0], amount: 100, idempotencyKey })
-        const replay = await fund(admin.token, { toAccount: alice.accountIds[0], amount: 100, idempotencyKey })
+        await fund(admin.token, { toAccount: alice.accountIds[0], amount: 10000, idempotencyKey })
+        const replay = await fund(admin.token, { toAccount: alice.accountIds[0], amount: 10000, idempotencyKey })
 
         expect(replay.status).toBe(200)
-        expect(await h.balanceOf(alice.accountIds[0])).toBe(100)
+        expect(await h.balanceOf(alice.accountIds[0])).toBe(10000)
     })
 
     test("cannot fund the reserve from itself", async () => {
-        const res = await fund(admin.token, { toAccount: admin.accountIds[0], amount: 100 })
+        const res = await fund(admin.token, { toAccount: admin.accountIds[0], amount: 10000 })
         expect(res.status).toBe(400)
     })
 
     test("is forbidden for normal users", async () => {
-        const res = await fund(alice.token, { toAccount: alice.accountIds[0], amount: 100 })
+        const res = await fund(alice.token, { toAccount: alice.accountIds[0], amount: 10000 })
         expect(res.status).toBe(403)
     })
 })

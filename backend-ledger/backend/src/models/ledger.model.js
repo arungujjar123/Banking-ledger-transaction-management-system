@@ -9,9 +9,15 @@ const ledgerSchema = new mongoose.Schema({
         index: true,
         immutable: true
     },
+    // Integer paise (₹1,500.50 is stored as 150050)
     amount: {
         type: Number,
         required: [ true, "Amount is required for creating a ledger entry" ],
+        min: [ 1, "Ledger amount must be positive" ],
+        validate: {
+            validator: Number.isInteger,
+            message: "Amount must be a whole number of paise"
+        },
         immutable: true
     },
     transaction: {

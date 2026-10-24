@@ -17,11 +17,25 @@ const dateFormatter = new Intl.DateTimeFormat('en-IN', {
   year: 'numeric',
 });
 
-// 45000 -> "45,000.00" (for layouts that style the ₹ symbol separately)
-export const formatAmount = (amount) => amountFormatter.format(amount || 0);
+// The API exchanges amounts as integer paise (₹1,500.50 = 150050) so ledger sums stay exact.
 
-// 45000 -> "₹45,000.00"
-export const formatCurrency = (amount) => `₹${formatAmount(amount)}`;
+// 4500000 -> "45,000.00" (for layouts that style the ₹ symbol separately)
+export const formatAmount = (paise) => amountFormatter.format((paise || 0) / 100);
+
+// 4500000 -> "₹45,000.00"
+export const formatCurrency = (paise) => `₹${formatAmount(paise)}`;
+
+const RUPEES_PATTERN = /^(\d+)(?:\.(\d{1,2}))?$/;
+
+// "1500.5" -> 150050. Parsed from the digits, not by multiplying a float (1.005 * 100 = 100.49999...).
+// Returns null for anything that is not a positive rupee amount with at most 2 decimal places.
+export const parseRupeesToPaise = (input) => {
+  const match = RUPEES_PATTERN.exec(String(input ?? '').trim());
+  if (!match) return null;
+
+  const paise = Number(match[1]) * 100 + Number((match[2] || '').padEnd(2, '0'));
+  return Number.isSafeInteger(paise) && paise > 0 ? paise : null;
+};
 
 // MongoDB ObjectIds embed their creation time (seconds) in the first 4 bytes,
 // so documents saved before timestamps were enabled still get a date

@@ -22,10 +22,15 @@ const transactionSchema = new mongoose.Schema({
         },
         default: "PENDING"
     },
+    // Integer paise (₹1,500.50 is stored as 150050)
     amount: {
         type: Number,
         required: [ true, "Amount is required for creating a transaction" ],
-        min: [ 0, "Transaction amount cannot be negative" ]
+        min: [ 1, "Transaction amount must be positive" ],
+        validate: {
+            validator: Number.isInteger,
+            message: "Amount must be a whole number of paise"
+        },
     },
     idempotencyKey: {
         type: String,
