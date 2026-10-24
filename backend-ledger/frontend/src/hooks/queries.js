@@ -101,6 +101,19 @@ export const useUpdateUserStatus = () => {
   });
 };
 
+// A reversal moves money and changes the original's status, so every admin view is refetched
+export const useReverseTransaction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: adminService.reverseTransaction,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+      queryClient.invalidateQueries({ queryKey: ['balance'] });
+    },
+  });
+};
+
 export const useDisburseFunds = () => {
   const queryClient = useQueryClient();
 

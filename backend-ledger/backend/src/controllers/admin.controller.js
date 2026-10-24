@@ -3,6 +3,10 @@ const accountModel = require('../models/account.model');
 const ledgerModel = require('../models/ledger.model');
 const transactionModel = require('../models/transaction.model');
 const tokenBlackListModel = require('../models/blackList.model');
+const { TransferError } = require('../services/transfer.service');
+const { reverseTransaction } = require('../services/reversal.service');
+
+const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
 
 /**
  * - GET /api/admin/users
@@ -112,7 +116,48 @@ async function updateUserStatusController(req, res) {
     }
 }
 
+/**
+ * - POST /api/admin/transactions/:transactionId/reverse
+ * - Undo a completed transfer with a new, opposite transfer (see services/reversal.service.js)
+ * - Body: { reason, idempotencyKey }
+ */
+async function reverseTransactionController(req, res) {
+    const { transactionId } = req.params;
+    const { reason, idempotencyKey } = req.body;
+
+    if (!OBJECT_ID_PATTERN.test(transactionId)) {
+        return res.status(400).json({ message: "Transaction IDs are 24 characters (0-9, a-f)" });
+    }
+    if (typeof reason !== "string" || reason.trim().length < 3 || reason.trim().length > 500) {
+        return res.status(400).json({ message: "A reason between 3 and 500 characters is required" });
+    }
+    if (typeof idempotencyKey !== "string" || !idempotencyKey || idempotencyKey.length > 100) {
+        return res.status(400).json({ message: "idempotencyKey is required (at most 100 characters)" });
+    }
+
+    try {
+        const result = await reverseTransaction({
+            transactionId,
+            reason: reason.trim(),
+            idempotencyKey,
+            adminId: req.user._id
+        });
+
+        return res.status(result.replayed ? 200 : 201).json({
+            message: result.replayed ? "Reversal already processed" : "Transaction reversed",
+            transaction: result.transaction
+        });
+    } catch (err) {
+        if (err instanceof TransferError) {
+            return res.status(err.status).json({ message: err.message });
+        }
+        console.error("Reversal failed:", err);
+        return res.status(500).json({ message: "Reversal failed. No money was moved, please try again." });
+    }
+}
+
 module.exports = {
+    reverseTransactionController,
     getAllUsersController,
     getAllLedgerEntriesController,
     getAllTransactionsController,

@@ -33,6 +33,18 @@ export const Input = ({ label, icon: Icon, prefix, mono = false, className, id, 
   );
 };
 
+export const Textarea = ({ label, className, id, ...props }) => {
+  const generatedId = useId();
+  const textareaId = id || generatedId;
+
+  return (
+    <div>
+      {label && <Label htmlFor={textareaId}>{label}</Label>}
+      <textarea id={textareaId} className={cn(fieldClasses, 'h-auto min-h-[88px] px-3.5 py-2.5 resize-y', className)} {...props} />
+    </div>
+  );
+};
+
 export const Select = ({ label, mono = false, className, id, children, ...props }) => {
   const generatedId = useId();
   const selectId = id || generatedId;
