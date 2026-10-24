@@ -107,6 +107,11 @@ export const adminService = {
 
   getApprovals: () => api.get('/admin/approvals').then((res) => res.data.transactions || []),
 
+  // Runs every ledger consistency check on the server (read-only)
+  getReconciliation: () => api.get('/admin/reconciliation').then((res) => res.data),
+
+  takeSnapshots: () => api.post('/admin/snapshots').then((res) => res.data),
+
   approveTransfer: (transactionId) => api.post(`/admin/approvals/${transactionId}/approve`).then((res) => res.data),
 
   rejectTransfer: ({ transactionId, reason }) =>

@@ -55,6 +55,12 @@ ledgerSchema.pre("findOneAndDelete", preventLedgerModification);
 ledgerSchema.pre("findOneAndReplace", preventLedgerModification);
 
 
+// Balances read a snapshot plus the entries written after it (see balanceSnapshot.model.js)
+ledgerSchema.index({ account: 1, createdAt: 1 });
+
 const ledgerModel = mongoose.model('ledger', ledgerSchema);
+
+// Aggregation expression: credits add to a balance, debits subtract
+ledgerModel.signedAmount = { $cond: [ { $eq: [ "$type", "CREDIT" ] }, "$amount", { $subtract: [ 0, "$amount" ] } ] };
 
 module.exports = ledgerModel;

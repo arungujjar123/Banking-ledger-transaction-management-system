@@ -15,6 +15,7 @@ export const queryKeys = {
     transactions: ['admin', 'transactions'],
     tokens: ['admin', 'tokens'],
     approvals: ['admin', 'approvals'],
+    reconciliation: ['admin', 'reconciliation'],
   },
 };
 
@@ -114,6 +115,24 @@ export const useUpdateUserStatus = () => {
   return useMutation({
     mutationFn: ({ userId, status }) => adminService.updateUserStatus(userId, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.users }),
+  });
+};
+
+// Checks run when the page opens and again on demand; never refetched in the background
+export const useReconciliation = () =>
+  useQuery({
+    queryKey: queryKeys.admin.reconciliation,
+    queryFn: adminService.getReconciliation,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+export const useTakeSnapshots = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: adminService.takeSnapshots,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.admin.reconciliation }),
   });
 };
 

@@ -6,6 +6,8 @@ const tokenBlackListModel = require('../models/blackList.model');
 const { TransferError } = require('../services/transfer.service');
 const { reverseTransaction } = require('../services/reversal.service');
 const { approveTransfer, rejectTransfer } = require('../services/approval.service');
+const { runReconciliation } = require('../services/reconciliation.service');
+const { takeBalanceSnapshots } = require('../services/snapshot.service');
 
 const OBJECT_ID_PATTERN = /^[a-f\d]{24}$/i;
 
@@ -220,7 +222,26 @@ async function rejectTransferController(req, res) {
     }
 }
 
+/**
+ * - GET /api/admin/reconciliation
+ * - Run every ledger consistency check (read-only) and report each one
+ */
+async function getReconciliationController(req, res) {
+    res.status(200).json(await runReconciliation());
+}
+
+/**
+ * - POST /api/admin/snapshots
+ * - Store every account's balance now (the server also does this daily at 00:10 IST)
+ */
+async function takeSnapshotsController(req, res) {
+    const result = await takeBalanceSnapshots();
+    res.status(201).json({ message: `Snapshot taken for ${result.accounts} accounts`, ...result });
+}
+
 module.exports = {
+    getReconciliationController,
+    takeSnapshotsController,
     getPendingApprovalsController,
     approveTransferController,
     rejectTransferController,
