@@ -4,6 +4,7 @@ A full-stack double-entry banking ledger. Balances are derived from an immutable
 
 [![CI](https://github.com/arungujjar123/Banking-ledger-transaction-management-system/actions/workflows/ci.yml/badge.svg)](https://github.com/arungujjar123/Banking-ledger-transaction-management-system/actions/workflows/ci.yml)
 [![Live demo](https://img.shields.io/badge/Live_demo-Render-46E3B7?logo=render&logoColor=white)](https://banking-ledger-lpzw.onrender.com)
+[![API docs](https://img.shields.io/badge/API_docs-Swagger-85EA2D?logo=swagger&logoColor=black)](https://banking-ledger-lpzw.onrender.com/api/docs/)
 ![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-transactions-47A248?logo=mongodb&logoColor=white)
@@ -141,7 +142,7 @@ backend-ledger/
 │           ├── transfer.service.js Atomic, idempotent transfers with sender locking
 │           ├── seed.service.js     Admin and demo user seeding
 │           └── email.service.js
-│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security, reversals, limits, reconciliation)
+│   └── tests/                      Jest + Supertest API tests (transfers, concurrency, auth, admin, migration, security, reversals, limits, reconciliation, docs)
 └── frontend/                       React + Vite client
     └── src/
         ├── pages/                  User and admin pages, login, register, 404
@@ -158,6 +159,8 @@ backend-ledger/
 ---
 
 ## API reference
+
+**Interactive docs:** [Swagger UI](https://banking-ledger-lpzw.onrender.com/api/docs/) on the live demo (call `POST /auth/demo-login` there, then "Try it out" on any endpoint), and the raw OpenAPI 3 spec at [`/api/docs/openapi.json`](https://banking-ledger-lpzw.onrender.com/api/docs/openapi.json). The spec lives in [`backend/src/docs/openapi.js`](backend-ledger/backend/src/docs/openapi.js); a test fails if a route exists in Express but not in the spec, or the other way round.
 
 All endpoints are under `/api`. The web app authenticates with the `httpOnly` session cookie set at login; API clients can instead send the JWT returned in the login response as an `Authorization: Bearer` header.
 
@@ -275,7 +278,7 @@ Sign in with the `ADMIN_EMAIL` / `ADMIN_PASSWORD` you configured, or use **Explo
 
 ### Tests
 
-The backend has 123 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
+The backend has 128 API tests (Jest + Supertest) that run against a real MongoDB replica set, because the behaviour under test depends on real transactions:
 
 - **Transfers:** balances, ledger entries, validation, ownership, inactive accounts, authentication
 - **Concurrency:** parallel transfers never overspend, parallel fundings all apply
@@ -287,6 +290,7 @@ The backend has 123 API tests (Jest + Supertest) that run against a real MongoDB
 - **Security:** query-operator injection, cookie flags, cookie-only sessions, security headers, JSON errors without stack traces, and rate limits
 - **Limits and approvals:** per-transfer and daily limits (also under parallel requests, and resetting at midnight IST), transfers awaiting approval, approve/reject exactly once even when admins race, approval re-checking balance and account status
 - **Reconciliation and snapshots:** a consistent ledger passes; a deleted entry, a changed amount, money moved for a pending transfer, a double reversal, a negative customer balance and a tampered snapshot are each caught by the right check; balances read from a snapshot plus newer entries stay exact
+- **API docs:** the OpenAPI spec is valid and documents exactly the routes Express serves; Swagger UI is served with a CSP that allows inline styles on that page only
 - **Reversals:** money moves back once even with 5 parallel requests, idempotent replays, no reversing a reversal, a receiver who already spent the money, frozen accounts, the system reserve
 
 ```bash
@@ -333,7 +337,10 @@ Set the environment variables from the table above in the Render dashboard. [`re
 
 ## Roadmap
 
-- OpenAPI (Swagger) documentation
+- Account lockout notifications and refresh tokens
+- Partial reversals and customer-raised disputes
+- Per-customer transfer limits
+- CSV export of the reconciliation report and ledger
 
 ---
 

@@ -2,7 +2,8 @@ const path = require("path")
 const express = require("express")
 const cookieParser = require("cookie-parser")
 const mongoose = require("mongoose")
-const { securityHeaders, apiLimiter } = require("./middleware/security.middleware")
+const swaggerUi = require("swagger-ui-express")
+const { securityHeaders, docsSecurityHeaders, apiLimiter } = require("./middleware/security.middleware")
 const errorHandler = require("./middleware/error.middleware")
 
 // Query filters never treat request data as operators: { "$ne": null } is matched literally
@@ -22,10 +23,8 @@ app.use(cookieParser())
 /**
  * - Routes required
  */
-const authRouter = require("./routes/auth.routes")
-const accountRouter = require("./routes/account.routes")
-const transactionRoutes = require("./routes/transaction.routes")
-const adminRouter = require("./routes/admin.routes")
+const apiRouters = require("./routes")
+const openApiSpec = require("./docs/openapi")
 
 /**
  * - Use Routes
@@ -36,10 +35,25 @@ app.get("/health", (req, res) => {
 })
 
 app.use("/api", apiLimiter)
-app.use("/api/auth", authRouter)
-app.use("/api/accounts", accountRouter)
-app.use("/api/transactions", transactionRoutes)
-app.use("/api/admin", adminRouter)
+for (const [ mountPath, router ] of Object.entries(apiRouters)) {
+    app.use(`/api${mountPath}`, router)
+}
+
+/**
+ * - API docs: Swagger UI at /api/docs, the raw OpenAPI spec at /api/docs/openapi.json
+ */
+app.get("/api/docs/openapi.json", (req, res) => {
+    res.json(openApiSpec)
+})
+app.use("/api/docs", docsSecurityHeaders, swaggerUi.serve, swaggerUi.setup(openApiSpec, {
+    customSiteTitle: "LedgerX API docs",
+    swaggerOptions: {
+        // Requests from "Try it out" carry the session cookie, so signing in here is enough
+        withCredentials: true,
+        // Do not send the spec to the public online validator
+        validatorUrl: null
+    }
+}))
 
 /**
  * - Serve frontend build (production)

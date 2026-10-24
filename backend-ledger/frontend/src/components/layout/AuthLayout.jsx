@@ -36,7 +36,13 @@ export const AuthLayout = ({ children }) => (
         </ul>
       </div>
 
-      <p className="text-[13px] text-subtle">Portfolio project · Node.js, Express, MongoDB, React</p>
+      <p className="text-[13px] text-subtle">
+        Portfolio project · Node.js, Express, MongoDB, React ·{' '}
+        {/* Served by Express, not a React route */}
+        <a href="/api/docs/" className="font-semibold text-muted underline underline-offset-2 hover:text-fg">
+          API docs
+        </a>
+      </p>
     </section>
 
     <section className="flex-1 flex flex-col bg-surface">
